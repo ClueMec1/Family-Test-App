@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family & Friends Media App</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f4f4; }
+    header { background: #2c3e50; color: white; padding: 1.5em; text-align: center; }
+    nav { display: flex; justify-content: center; background: #34495e; padding: 1em 0; flex-wrap: wrap; }
+    nav button {
+      background: #ecf0f1; border: none; padding: 0.6em 1em; margin: 0.3em;
+      font-size: 16px; cursor: pointer; border-radius: 5px;
+    }
+    nav button:hover { background: #bdc3c7; }
+    .content { display: flex; flex-wrap: wrap; justify-content: center; gap: 1em; padding: 1em; }
+    .box {
+      background: white; padding: 1em; border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px;
+    }
+    .box h3 { margin-top: 0; }
+    audio, video, iframe { width: 100%; margin-top: 0.5em; border-radius: 5px; }
+    footer {
+      text-align: center; padding: 1em; background: #ecf0f1;
+      font-size: 14px; color: #555; margin-top: 2em;
+    }
+    .email-reminder {
+      background: #fffbcc; border: 1px solid #f1c40f; padding: 1em;
+      text-align: center; border-radius: 5px; margin: 1em auto; width: 90%; max-width: 500px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎧 Family & Friends Media Hub 🎥</h1>
+  <p>Scroll down and enjoy our favorite memories, stories, and moments!</p>
+</header>
+
+<nav>
+  <button onclick="showPage('family')">Family</button>
+  <button onclick="showPage('friends')">Friends</button>
+  <button onclick="showPage('events')">Events</button>
+  <button onclick="showPage('live')">Live</button>
+</nav>
+
+<div id="email-section" class="email-reminder">
+  <p>👋 Haven’t visited in a while? We miss you! Sign up to get email updates from the family.</p>
+  <input type="email" id="email-input" placeholder="Enter your email" style="padding:0.5em; width:60%;">
+  <button onclick="registerEmail()" style="padding:0.5em;">Subscribe</button>
+  <p id="email-msg" style="margin-top: 0.5em; color: green;"></p>
+</div>
+
+<div class="content" id="media-content">
+  <!-- Dynamic media boxes will appear here -->
+</div>
+
+<footer>
+  &copy; 2025 My Family Media App · Built with ❤️ for our people
+</footer>
+
+<script>
+const pages = {
+  family: [
+    { type: 'audio', title: 'Grandma’s Story', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+    { type: 'video', title: 'Family BBQ 2023', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }
+  ],
+  friends: [
+    { type: 'audio', title: 'Mendy’s Recording', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
+    { type: 'video', title: 'Birthday Celebration', src: 'https://www.w3schools.com/html/movie.mp4' }
+  ],
+  events: [
+    { type: 'audio', title: 'Wedding Dance', src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+    { type: 'video', title: 'Chol Hamoed Trip', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }
+  ],
+  live: [
+    { type: 'ipcam', title: 'Shul Live Camera', src: 'https://www.youtube.com/embed/live_stream?channel=UC4R8DWoMoI7CAwX8_LjQHig' }
+  ]
+};
+
+function showPage(pageName) {
+  const container = document.getElementById('media-content');
+  container.innerHTML = '';
+  pages[pageName].forEach(item => {
+    const box = document.createElement('div');
+    box.className = 'box';
+    let mediaElement = '';
+    if (item.type === 'audio') {
+      mediaElement = \`<audio controls src="\${item.src}"></audio>\`;
+    } else if (item.type === 'video') {
+      mediaElement = \`<video controls src="\${item.src}"></video>\`;
+    } else if (item.type === 'ipcam') {
+      mediaElement = \`<iframe src="\${item.src}" allowfullscreen></iframe>\`;
+    }
+    box.innerHTML = \`<h3>\${item.title}</h3>\` + mediaElement;
+    container.appendChild(box);
+  });
+}
+
+function registerEmail() {
+  const email = document.getElementById('email-input').value;
+  const msg = document.getElementById('email-msg');
+  if (email.includes('@') && email.includes('.')) {
+    msg.innerText = "Thanks! We'll keep you updated.";
+  } else {
+    msg.style.color = "red";
+    msg.innerText = "Please enter a valid email.";
+  }
+}
+
+showPage('family');
+</script>
+
+</body>
+</html>
