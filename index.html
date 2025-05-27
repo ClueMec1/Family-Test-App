@@ -101,6 +101,7 @@ function registerEmail() {
   const email = document.getElementById('email-input').value;
   const msg = document.getElementById('email-msg');
   if (email.includes('@') && email.includes('.')) {
+    alert('Holy Shmoly');
     msg.innerText = "Thanks! We'll keep you updated.";
   } else {
     msg.style.color = "red";
