@@ -30,6 +30,19 @@ it as an app. After the first load it opens with the server stopped.
    `inventory_db.sample.json`. Its default card device is a simulator that charges nothing; delete that
    profile before trading.
 
+## Items
+
+Only the barcode is required. Every other field can be left empty, item by item:
+
+| Left empty | What happens |
+|---|---|
+| Name | The barcode is shown instead ("Item 0700") |
+| Regular price | The cashier types the price each time the item is scanned, for example for loose produce |
+| Sale price | The item is not on sale |
+| In stock | The item is not counted: no low-stock alerts, and sales do not change it |
+| Category | No category; category promotions do not reach it |
+| Sales tax | Not taxed |
+
 ## Getting your data to the registers
 
 **Wi-Fi sync (automatic)**
@@ -100,5 +113,5 @@ the Checkout Terminal's README show the exact message.
   for a moment when a page opens or reconnects. Two free public services make the introduction
   (`ntfy.sh` and `api.ipify.org`); prices, sales and customer details never pass through them. This was
   tested with a stand-in for those services on one machine, so try it on your own network first.
-- After replacing these files with a newer version, change `v1` in `sw.js` to `v2` so browsers pick up the
+- After replacing these files with a newer version, raise the version number in `sw.js` (for example `v2` to `v3`) so browsers pick up the
   update.

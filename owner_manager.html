@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141c1f">
+<meta name="color-scheme" content="light">
+<title>Owner manager</title>
+<link rel="manifest" href="manager.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #edf1ee; --surface: #ffffff; --ink: #162024; --mute: #55666a; --line: #d2dad6; --row: #f5f7f5;
+  --slate: #141c1f; --slate-2: #24333a; --chalk: #f4f2ea; --tag: #ffcf33; --tag-ink: #1d1a04;
+  --tomato: #c42f1e; --tomato-bg: #fde6e2; --leaf: #1c7d45; --leaf-bg: #dff3e6;
+  --display: Bahnschrift, 'DIN Alternate', 'Avenir Next Condensed', 'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --body: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); -webkit-text-size-adjust: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid #1d6fd1; outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.15; }
+
+/* PIN gate */
+.gate { min-height: 100%; display: grid; place-items: center; padding: 24px; background: var(--slate); color: var(--chalk); }
+.gate form { width: min(380px, 100%); }
+.gate h1 { font-size: 2.1rem; margin-bottom: 8px; }
+.gate p { margin: 0 0 18px; color: #b9c6c8; }
+.gate label { display: block; margin: 14px 0 4px; }
+.gate input { width: 100%; height: 56px; text-align: center; letter-spacing: .6em; font: 1.9rem var(--display); background: #0e1416; color: var(--chalk); border: 1px solid #3b4e54; border-radius: 6px; }
+.gate .err { color: #ff8a7f; min-height: 1.4em; margin: 10px 0 0; }
+.gate .btn { width: 100%; height: 52px; margin-top: 8px; font-size: 1.1rem; }
+
+.studio { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100%; }
+.side { background: var(--slate); color: var(--chalk); display: flex; flex-direction: column; padding: 20px 14px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.brand { font: 700 1.35rem/1.15 var(--display); margin: 0 6px 2px; }
+.brand-sub { margin: 0 6px 18px; color: #a9b8ba; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.nav { width: 100%; display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 10px 12px; border: 0; border-left: 4px solid transparent; border-radius: 0 6px 6px 0; background: none; color: #cfd9da; font: 600 1.05rem var(--display); }
+.nav:hover { background: var(--slate-2); }
+.nav[aria-current="page"] { background: var(--slate-2); border-left-color: var(--tag); color: #fff; }
+.nav .count { background: var(--tag); color: var(--tag-ink); border-radius: 3px; padding: 0 7px; font-size: .85rem; }
+.side-foot { margin-top: auto; padding-top: 20px; display: grid; gap: 8px; }
+.export { min-height: 76px; padding: 10px 14px; border: 0; border-radius: 6px; background: var(--tag); color: var(--tag-ink); font: 700 1.2rem/1.15 var(--display); text-align: left; }
+.export:hover { filter: brightness(1.06); }
+.side .quiet { background: none; border: 1px solid #3b4e54; color: var(--chalk); border-radius: 6px; min-height: 40px; font-weight: 600; }
+.side .quiet:hover { background: var(--slate-2); }
+.side .lamp { margin: 6px 6px 0; color: #a9b8ba; font-size: .85rem; }
+
+.view { padding: 26px 32px 60px; min-width: 0; }
+.view-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; margin-bottom: 18px; }
+.view-head h1 { font-size: 1.9rem; }
+.view-head p { margin: 4px 0 0; color: var(--mute); max-width: 68ch; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.tools input[type=search] { flex: 1 1 240px; max-width: 380px; }
+.tools label { display: flex; align-items: center; gap: 6px; color: var(--mute); }
+.tools .narrow { width: 76px; }
+input:not([type=checkbox]):not([type=radio]), select, textarea { height: 40px; padding: 0 10px; border: 1px solid #b4c0bb; border-radius: 6px; background: #fff; }
+textarea { height: auto; padding: 8px 10px; width: 100%; resize: vertical; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--slate); }
+input[readonly] { background: var(--row); color: var(--mute); }
+
+.btn { min-height: 40px; padding: 0 14px; border-radius: 6px; border: 1px solid #b4c0bb; background: #fff; font-weight: 600; }
+.btn:hover { background: var(--row); }
+.btn.primary { background: var(--slate); border-color: var(--slate); color: #fff; }
+.btn.primary:hover { background: var(--slate-2); }
+.btn.tag { background: var(--tag); border-color: var(--tag); color: var(--tag-ink); }
+.btn.danger { color: var(--tomato); }
+.link { border: 0; background: none; padding: 4px 6px; color: #0f5fb8; font-weight: 600; border-radius: 4px; }
+.link:hover { background: #e3edf9; }
+.link.danger { color: var(--tomato); }
+.link.danger:hover { background: var(--tomato-bg); }
+
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font: 600 .9rem var(--display); color: var(--mute); background: var(--row); white-space: nowrap; }
+th button { border: 0; background: none; font: inherit; color: inherit; padding: 0; }
+th button[aria-pressed="true"] { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.acts { text-align: right; white-space: nowrap; }
+td.code { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+tr.is-low td { background: #fffaf0; }
+/* Low-stock and status marks borrow the shelf-edge price tag. */
+.tagmark { display: inline-block; padding: 1px 8px; border-radius: 2px; font: 700 .82rem var(--display); background: var(--tag); color: var(--tag-ink); }
+.tagmark.bad { background: var(--tomato); color: #fff; }
+.tagmark.good { background: var(--leaf-bg); color: var(--leaf); }
+.tagmark.plain { background: #e6ebe8; color: var(--mute); }
+.empty { padding: 36px 20px; background: var(--surface); border: 1px dashed #b4c0bb; border-radius: 6px; color: var(--mute); text-align: center; margin: 0; }
+s.was { color: var(--tomato); margin-right: 6px; }
+
+.ledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; margin: 0 0 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.ledger div { padding: 16px 18px; border-right: 1px solid var(--line); }
+.ledger div:last-child { border-right: 0; }
+.ledger dt { color: var(--mute); }
+.ledger dd { margin: 2px 0 0; font: 700 1.9rem/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.ledger small { display: block; color: var(--mute); font: 400 .88rem var(--body); margin-top: 2px; }
+.ledger .warn dd { color: var(--tomato); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; }
+.cols h2 { font-size: 1.2rem; margin-bottom: 10px; }
+.plain-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.plain-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+.plain-list li:last-child { border-bottom: 0; }
+.steps { margin: 0; padding-left: 1.3em; max-width: 62ch; }
+.steps li { margin-bottom: 6px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; max-width: 760px; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 20px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.setting:last-child { border-bottom: 0; }
+.setting strong { display: block; font: 600 1.08rem var(--display); }
+.setting span { color: var(--mute); }
+.setting.tall { grid-template-columns: 1fr; }
+.toggle { width: 56px; height: 30px; border-radius: 15px; border: 1px solid #b4c0bb; background: #e6ebe8; position: relative; padding: 0; }
+.toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: left .12s; }
+.toggle[aria-checked="true"] { background: var(--leaf); border-color: var(--leaf); }
+.toggle[aria-checked="true"]::after { left: 29px; }
+details.note { margin-top: 18px; max-width: 760px; color: var(--mute); }
+details.note summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+details.note pre { background: var(--slate); color: var(--chalk); padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: .85rem; }
+
+dialog.dlg { width: min(540px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+dialog.dlg::backdrop { background: rgba(20, 28, 31, .6); }
+.dlg h2 { font-size: 1.45rem; margin-bottom: 12px; }
+.dlg p { margin: 0 0 12px; }
+.dlg .field { margin-bottom: 14px; }
+.dlg .field > label { display: block; font-weight: 600; margin-bottom: 4px; }
+.dlg .field input:not([type=checkbox]), .dlg .field select { width: 100%; }
+.dlg .field.check > label { display: flex; align-items: center; gap: 8px; }
+.dlg .hint { display: block; color: var(--mute); font-size: .9rem; margin-top: 4px; }
+.dlg .err { color: var(--tomato); min-height: 1.3em; margin: 6px 0 0; font-weight: 600; }
+.dlg-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+#pinInput { letter-spacing: .6em; text-align: center; font: 1.7rem var(--display); height: 52px; width: 100%; }
+
+.join { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; margin-bottom: 18px; background: #fff6d2; border: 2px solid var(--tag); border-radius: 6px; }
+.join p { margin: 0; flex: 1 1 300px; }
+.panel-title { font-size: 1.2rem; margin: 28px 0 10px; }
+.hostcode { font: 700 1.3rem var(--display); letter-spacing: .08em; }
+.gate .waitnote { color: var(--tag); margin: 14px 0 0; }
+.toasts { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: grid; gap: 8px; max-width: min(460px, calc(100vw - 48px)); }
+.toast { padding: 12px 16px; border-radius: 6px; background: var(--slate); color: var(--chalk); font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); border-left: 6px solid #a9b8ba; }
+.toast.good { border-left-color: #5fd487; }
+.toast.bad { border-left-color: #ff6b5e; }
+.veil { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(20, 28, 31, .88); color: var(--chalk); border: 4px dashed var(--tag); font: 700 1.6rem var(--display); pointer-events: none; }
+
+@media (max-width: 860px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; height: auto; padding: 14px; }
+  .brand-sub { margin-bottom: 10px; }
+  .side ul { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  .nav { white-space: nowrap; border-left: 0; border-bottom: 4px solid transparent; border-radius: 6px 6px 0 0; gap: 8px; }
+  .nav[aria-current="page"] { border-bottom-color: var(--tag); }
+  .side-foot { margin-top: 12px; padding-top: 0; grid-template-columns: 1fr 1fr; }
+  .export { grid-column: 1 / -1; min-height: 56px; }
+  .side .lamp { display: none; }
+  .view { padding: 20px 14px 60px; }
+  .ledger div { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) { .toggle::after { transition: none; } }
+@media print { .side, .toasts, .tools, td.acts, th.acts { display: none !important; } .studio { display: block; } }
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <form id="gateForm" autocomplete="off">
+    <h1 id="gateTitle">Owner manager</h1>
+    <p id="gateLead"></p>
+    <label for="gatePin" id="gatePinLabel">4-digit PIN</label>
+    <input id="gatePin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required>
+    <div id="gateAgain" hidden>
+      <label for="gatePin2">Type the PIN again</label>
+      <input id="gatePin2" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}">
+    </div>
+    <p id="gateErr" class="err" role="alert"></p>
+    <button class="btn tag" id="gateBtn">Unlock</button>
+    <p id="gateWait" class="waitnote" hidden></p>
+  </form>
+</div>
+
+<div id="studio" class="studio" hidden>
+  <nav class="side" aria-label="Sections">
+    <p class="brand">Owner manager</p>
+    <p class="brand-sub" id="storeName"></p>
+    <ul id="navList"></ul>
+    <div class="side-foot">
+      <button type="button" class="export" id="exportBtn">Compile &amp; Export Sync File</button>
+      <button type="button" class="quiet" id="importBtn">Import a sync file</button>
+      <button type="button" class="quiet" id="lockBtn">Lock</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <p class="lamp" id="hostLamp" hidden></p>
+      <p class="lamp" id="offlineLamp" hidden>Works offline on this computer</p>
+    </div>
+  </nav>
+  <main class="view" id="view"></main>
+</div>
+
+<div id="dropVeil" class="veil" hidden>Release to import the sync file</div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+<dialog id="formDlg" class="dlg"><form novalidate>
+  <h2 id="formTitle"></h2>
+  <p id="formLead" hidden></p>
+  <div id="formFields"></div>
+  <p id="formErr" class="err" role="alert"></p>
+  <div class="dlg-btns"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" id="formOk">Save</button></div>
+</form></dialog>
+
+<dialog id="askDlg" class="dlg"><form method="dialog">
+  <h2 id="askTitle"></h2><div id="askBody"></div><div id="askBtns" class="dlg-btns"></div>
+</form></dialog>
+
+<dialog id="pinDlg" class="dlg"><form autocomplete="off">
+  <h2 id="pinTitle"></h2>
+  <div class="field"><label for="pinInput">4-digit PIN</label>
+  <input id="pinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required></div>
+  <p id="pinErr" class="err" role="alert"></p>
+  <div class="dlg-btns"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Continue</button></div>
+</form></dialog>
+
+<script>
+/* ===== Shared core. This block is identical in checkout_terminal.html and owner_manager.html ===== */
+const Core = (() => {
+  'use strict';
+
+  /* ---------- money and dates (all arithmetic in integer cents) ---------- */
+  const toCents = v => { const n = Math.round(Number(v) * 100); return Number.isFinite(n) ? n : 0; };
+  const toMoney = c => Math.round(c) / 100;
+  const fmt = c => (c < 0 ? '-$' : '$') + (Math.abs(c) / 100).toFixed(2);
+  const pad2 = n => String(n).padStart(2, '0');
+  const isoDate = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const addDays = (iso, days) => { const [y, m, d] = iso.split('-').map(Number); return isoDate(new Date(y, m - 1, d + days)); };
+  const phoneKey = s => String(s ?? '').replace(/\D/g, '');
+  const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+  /* ---------- SHA-256 in plain JS, so PIN checks work without a secure context ---------- */
+  const K = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+  const W = new Uint32Array(64);
+  const encoder = new TextEncoder();
+  function sha256(str) {
+    const bytes = encoder.encode(str), len = bytes.length;
+    const total = ((len + 9 + 63) >> 6) << 6;
+    const buf = new Uint8Array(total); buf.set(bytes); buf[len] = 0x80;
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(total - 8, Math.floor(len / 0x20000000)); dv.setUint32(total - 4, (len << 3) >>> 0);
+    const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) W[i] = dv.getUint32(off + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const x = W[i - 15], y = W[i - 2];
+        const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
+      }
+      let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], hh = H[7];
+      for (let i = 0; i < 64; i++) {
+        const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const t1 = (hh + S1 + ((e & f) ^ (~e & g)) + K[i] + W[i]) >>> 0;
+        const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+        hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += hh;
+    }
+    let out = ''; for (const x of H) out += x.toString(16).padStart(8, '0');
+    return out;
+  }
+
+  /* ---------- PIN: salted, stretched SHA-256 stored as "s256$rounds$salt$digest" ---------- */
+  const PIN_ROUNDS = 12000;
+  const randomHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
+  function hashPin(pin, salt = randomHex(16), rounds = PIN_ROUNDS) {
+    let d = sha256(`${salt}:${pin}`);
+    for (let i = 1; i < rounds; i++) d = sha256(d + salt);
+    return `s256$${rounds}$${salt}$${d}`;
+  }
+  function verifyPin(pin, stored) {
+    const [tag, rounds, salt, digest] = String(stored ?? '').split('$');
+    if (tag !== 's256' || !digest || !(Number(rounds) > 0) || Number(rounds) > 200000) return false;
+    return hashPin(String(pin), salt, Number(rounds)) === stored;
+  }
+  /* Wrong-PIN guard: every fifth miss on this device adds a 30 second wait. */
+  const GUARD_KEY = 'pos.pin.guard';
+  function tryPin(pin, stored) {
+    let g = {}; try { g = JSON.parse(localStorage.getItem(GUARD_KEY)) || {}; } catch { /* fresh guard */ }
+    const now = Date.now();
+    if (g.until > now) return { ok: false, wait: Math.ceil((g.until - now) / 1000) };
+    if (verifyPin(pin, stored)) { try { localStorage.removeItem(GUARD_KEY); } catch { /* ignore */ } return { ok: true }; }
+    const fails = (g.fails || 0) + 1;
+    const until = fails % 5 === 0 ? now + 30000 * (fails / 5) : 0;
+    try { localStorage.setItem(GUARD_KEY, JSON.stringify({ fails, until })); } catch { /* ignore */ }
+    return { ok: false, wait: until ? Math.ceil((until - now) / 1000) : 0 };
+  }
+
+  /* ---------- schema ---------- */
+  const PROMO_TYPES = ['percentage', 'fixed', 'clearance'];
+  const emptyDb = () => ({
+    inventory: {}, promotions: {}, customers: {},
+    payment_devices: { ACTIVE_PROFILE_ID: '', profiles: {} },
+    settings: { pin_hash: '', receipt_header: '', credit_allowed_globally: true, global_credit_duration_days: 7, printing_enabled: true, tax_rate_percent: 0, last_modified: '' },
+    sales_history: []
+  });
+  const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  const bool = (v, dflt) => v === true || v === 'true' ? true : v === false || v === 'false' ? false : dflt;
+  const money = v => Math.max(0, toMoney(toCents(v)));
+  const blank = v => v === null || v === undefined || v === '';
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const safeKey = k => { const s = String(k ?? '').trim(); return s === '__proto__' ? '' : s; };
+
+  /* Turns any parsed JSON into a clean database. Throws when it is not a sync file; reports rows it had to skip. */
+  function normalizeDb(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !raw.inventory || typeof raw.inventory !== 'object') {
+      throw new Error('This is not an inventory_db.json sync file (it has no "inventory" section).');
+    }
+    const db = emptyDb(), skipped = [];
+    for (const [code, it] of Object.entries(raw.inventory)) {
+      const key = safeKey(code);
+      if (!key || !it || typeof it !== 'object') { skipped.push(`inventory "${code}"`); continue; }
+      /* Only the barcode is required. No name: the barcode is shown. No price: the cashier types it. No stock: not counted. */
+      db.inventory[key] = { name: String(it.name ?? '').trim() || `Item ${key}`, price: blank(it.price) ? null : money(it.price), sale_price: money(it.sale_price), stock: blank(it.stock) ? null : Math.trunc(Number(it.stock)) || 0, category: String(it.category ?? '').trim(), taxable: bool(it.taxable, false) };
+    }
+    for (const [code, p] of Object.entries(obj(raw.promotions))) {
+      const key = safeKey(code), type = String(obj(p).type ?? '').toLowerCase(), value = Number(obj(p).value);
+      if (!key || !PROMO_TYPES.includes(type) || !(value > 0) || (type !== 'fixed' && value > 100)) { skipped.push(`promotion "${code}"`); continue; }
+      db.promotions[key] = { type, value, applies_to: String(p.applies_to ?? 'all').trim() || 'all' };
+    }
+    for (const [phone, c] of Object.entries(obj(raw.customers))) {
+      const key = phoneKey(phone), name = String(obj(c).name ?? '').trim();
+      if (key.length < 4 || !name) { skipped.push(`customer "${phone}"`); continue; }
+      db.customers[key] = { name, balance_due: money(c.balance_due), due_date: isDate(c.due_date) ? c.due_date : null, status: c.status === 'frozen' ? 'frozen' : 'active' };
+    }
+    const pd = obj(raw.payment_devices);
+    for (const [id, p] of Object.entries(obj(pd.profiles))) {
+      const key = safeKey(id);
+      if (!key || !p || typeof p !== 'object') { skipped.push(`payment profile "${id}"`); continue; }
+      db.payment_devices.profiles[key] = {
+        provider_name: String(p.provider_name ?? '').trim(), connection_type: p.connection_type === 'SERIAL_COM' ? 'SERIAL_COM' : 'LAN_IP',
+        endpoint_address: String(p.endpoint_address ?? '').trim(), label: String(p.label ?? '').trim() || key
+      };
+    }
+    const ids = Object.keys(db.payment_devices.profiles), active = String(pd.ACTIVE_PROFILE_ID ?? '');
+    db.payment_devices.ACTIVE_PROFILE_ID = ids.includes(active) ? active : (ids[0] || '');
+    const s = obj(raw.settings), days = Math.trunc(Number(s.global_credit_duration_days)), tax = Number(s.tax_rate_percent);
+    db.settings = {
+      pin_hash: typeof s.pin_hash === 'string' ? s.pin_hash : '',
+      receipt_header: String(s.receipt_header ?? ''),
+      credit_allowed_globally: bool(s.credit_allowed_globally, true),
+      global_credit_duration_days: days >= 0 ? days : 7,
+      printing_enabled: bool(s.printing_enabled, true),
+      tax_rate_percent: tax >= 0 && tax <= 100 ? tax : 0,
+      last_modified: typeof s.last_modified === 'string' && !Number.isNaN(Date.parse(s.last_modified)) ? s.last_modified : ''
+    };
+    db.sales_history = (Array.isArray(raw.sales_history) ? raw.sales_history : []).filter(r => r && typeof r === 'object' && r.id);
+    return { db, skipped };
+  }
+
+  const isOverdue = (c, today = isoDate()) => toCents(c.balance_due) > 0 && !!c.due_date && today > c.due_date;
+  const isFrozen = (c, today) => c.status === 'frozen' || isOverdue(c, today);
+  /* Marks every past-due account frozen. Returns how many it changed. */
+  const needsFreeze = (core, today = isoDate()) => Object.values(core.customers).some(c => c.status !== 'frozen' && isOverdue(c, today));
+  const freezeOverdue = (core, today = isoDate()) => { for (const c of Object.values(core.customers)) if (c.status !== 'frozen' && isOverdue(c, today)) c.status = 'frozen'; };
+
+  /* What one sale or account payment does to stock and balances. The register runs it at the moment of sale, the host
+     runs it once when a register reports the sale, and a register replays it for sales the host has not confirmed. */
+  function applyRecord(core, rec) {
+    const acct = rec.customer && has(core.customers, rec.customer) ? core.customers[rec.customer] : null;
+    if (rec.type === 'account_payment') {
+      if (!acct) return;
+      const left = Math.max(0, toCents(acct.balance_due) - toCents(rec.total));
+      acct.balance_due = toMoney(left);
+      if (left === 0) { acct.due_date = null; acct.status = 'active'; }
+      return;
+    }
+    for (const it of rec.items || []) if (has(core.inventory, it.barcode) && core.inventory[it.barcode].stock !== null) core.inventory[it.barcode].stock -= Math.trunc(Number(it.qty)) || 0;
+    if (rec.payment?.method === 'account' && acct) {
+      const before = toCents(acct.balance_due);
+      acct.balance_due = toMoney(before + toCents(rec.total));
+      if (!(before > 0 && acct.due_date)) acct.due_date = addDays(isoDate(new Date(rec.ts)), core.settings.global_credit_duration_days);
+    }
+  }
+  /* Owner changes carry a timestamp and the newest one wins everywhere. It never goes backwards on one computer, and a
+     stamp from more than ten minutes in the future (a wrong clock) counts as no stamp at all. */
+  const stampOf = core => { const t = Date.parse(core?.settings?.last_modified || '') || 0; return t > Date.now() + 600000 ? 0 : t; };
+  const stampNow = core => { core.settings.last_modified = new Date(Math.max(Date.now(), stampOf(core) + 1)).toISOString(); };
+
+  /* ---------- storage: IndexedDB, one "core" record plus one record per sale ---------- */
+  const Store = (() => {
+    let opening;
+    const chan = 'BroadcastChannel' in self ? new BroadcastChannel('grocer-pos') : null;
+    const open = () => opening ??= new Promise((res, rej) => {
+      const r = indexedDB.open('grocer_pos', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('sales', { keyPath: 'id' }); };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error || new Error('This browser is blocking local storage for the register.'));
+    });
+    const stripSales = db => { const { sales_history, ...core } = db; return core; };
+    const run = async (stores, mode, work) => {
+      const idb = await open();
+      return new Promise((res, rej) => {
+        const tx = idb.transaction(stores, mode); let out, failure;
+        tx.oncomplete = () => res(out);
+        tx.onabort = tx.onerror = () => rej(failure || tx.error || new Error('Saving to local storage failed.'));
+        try { work(tx, v => { out = v; }, e => { failure = e; try { tx.abort(); } catch { /* already closed */ } }); } catch (e) { failure = e; tx.abort(); }
+      });
+    };
+    /* Read the freshest core, change it, write it and any sale records in one transaction. */
+    async function update(change, records = []) {
+      const core = await run(['kv', 'sales'], 'readwrite', (tx, done, fail) => {
+        const kv = tx.objectStore('kv'), get = kv.get('core');
+        get.onsuccess = () => {
+          try {
+            const c = get.result || stripSales(emptyDb());
+            change(c); kv.put(c, 'core');
+            for (const r of records) tx.objectStore('sales').put(r);
+            done(c);
+          } catch (e) { fail(e); }
+        };
+      });
+      chan?.postMessage('changed');
+      return core;
+    }
+    async function load() {
+      return run(['kv'], 'readonly', (tx, done) => { const g = tx.objectStore('kv').get('core'); g.onsuccess = () => done(g.result || null); });
+    }
+    async function allSales() {
+      const rows = await run(['sales'], 'readonly', (tx, done) => { const g = tx.objectStore('sales').getAll(); g.onsuccess = () => done(g.result); });
+      return rows.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+    }
+    /* Swap in a whole database. Sales are merged by id, never dropped. */
+    async function replace(db) {
+      const core = stripSales(db);
+      await run(['kv', 'sales'], 'readwrite', (tx, done) => {
+        tx.objectStore('kv').put(core, 'core');
+        for (const r of db.sales_history || []) tx.objectStore('sales').put(r);
+        done();
+      });
+      chan?.postMessage('changed');
+      return core;
+    }
+    /* Which of these sale ids are not stored yet. */
+    async function missing(ids) {
+      return run(['sales'], 'readonly', (tx, done) => {
+        const out = new Set(), sales = tx.objectStore('sales'); done(out);
+        for (const id of ids) { const g = sales.getKey(id); g.onsuccess = () => { if (g.result === undefined) out.add(id); }; }
+      });
+    }
+    const onChange = cb => { if (chan) chan.onmessage = cb; };
+    return { load, update, allSales, replace, missing, onChange };
+  })();
+
+  /* Schema-ordered export text and a client-side download. */
+  const compile = (core, sales) => JSON.stringify({
+    inventory: core.inventory, promotions: core.promotions, customers: core.customers,
+    payment_devices: core.payment_devices, settings: core.settings, sales_history: sales
+  }, null, 2);
+  function download(text, filename) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  const readFile = file => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error || new Error('Could not read the file.'));
+    r.readAsText(file);
+  });
+  /* Reads dropped or picked files one by one and returns the first valid database. */
+  async function readDbFiles(files) {
+    let problem = 'No file was received.';
+    for (const f of files) {
+      try { return normalizeDb(JSON.parse(await readFile(f))); }
+      catch (e) { problem = `${f.name}: ${e instanceof SyntaxError ? 'not valid JSON.' : e.message}`; }
+    }
+    throw new Error(problem);
+  }
+
+  /* ---------- DOM helper: builds elements from data, never from HTML strings ---------- */
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'value' || k === 'checked' || k === 'disabled' || k === 'hidden' || k === 'selected') el[k] = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+
+  const registerOffline = () => {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return Promise.resolve(false);
+    return navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => true).catch(() => false);
+  };
+
+  /* ---------- Wi-Fi sync plumbing, shared by the host and the registers ----------
+     Two pages on the same network talk directly over a WebRTC data channel. To open it, each side must first hand the
+     other one short "how to reach me" note. Those notes go through a public message board (ntfy). Shop data never does. */
+  const Link = (() => {
+    const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+    const SERVICE = pref('pos.link.service', 'https://ntfy.sh').replace(/\/+$/, '');
+    const proof = (key, nonce, who) => sha256(`${key}|${nonce}|${who}`);
+    async function publish(topic, msg) {
+      const res = await fetch(`${SERVICE}/${topic}`, { method: 'POST', body: JSON.stringify(msg), cache: 'no-store' });
+      if (!res.ok) throw new Error(`The link service answered ${res.status}.`);
+    }
+    /* Listens on one or more boards. onState(true) fires each time the listening connection is (re)established. */
+    function subscribe(topics, onMsg, onState) {
+      const es = new EventSource(`${SERVICE}/${topics.join(',')}/sse`);
+      es.onopen = () => onState?.(true);
+      es.onerror = () => onState?.(false);
+      es.onmessage = e => {
+        let m;
+        try { const env = JSON.parse(e.data); if (env.event && env.event !== 'message') return; m = JSON.parse(env.message); } catch { return; }
+        if (m && typeof m === 'object') onMsg(m);
+      };
+      return () => es.close();
+    }
+    /* Computers behind one router share a public address. Its hash names the board where a new register asks "who is host?". */
+    async function areaTopic() {
+      let ip = pref('pos.link.area', '');
+      if (!ip) ip = (await (await fetch('https://api.ipify.org?format=json', { cache: 'no-store' })).json()).ip;
+      return 'gpos-a-' + sha256('grocer-pos-area|' + ip).slice(0, 24);
+    }
+    const gathered = pc => new Promise(res => {
+      if (pc.iceGatheringState === 'complete') return res();
+      const t = setTimeout(res, 2500);
+      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+    });
+    const compact = sdp => { let n = 0; return sdp.split('\r\n').filter(l => !l.startsWith('a=candidate') || ++n <= 8).join('\r\n'); };   // notes must stay under 4 KB
+    async function offer() {
+      const pc = new RTCPeerConnection({ iceServers: [] }), dc = pc.createDataChannel('pos');
+      await pc.setLocalDescription(await pc.createOffer()); await gathered(pc);
+      return { pc, dc, sdp: compact(pc.localDescription.sdp) };
+    }
+    async function answer(sdp) {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      const channel = new Promise(res => { pc.ondatachannel = e => res(e.channel); });
+      await pc.setRemoteDescription({ type: 'offer', sdp });
+      await pc.setLocalDescription(await pc.createAnswer()); await gathered(pc);
+      return { pc, channel, sdp: compact(pc.localDescription.sdp) };
+    }
+    /* JSON messages of any size over a data channel: split into small frames, sent in order, rebuilt on arrival. */
+    function wire(dc, onMsg, onClose) {
+      const FRAME = 12000, parts = new Map(); let seq = 0, chain = Promise.resolve();
+      dc.onmessage = e => {
+        const s = String(e.data), a = s.indexOf('|'), b = s.indexOf('|', a + 1), c = s.indexOf('|', b + 1);
+        if (c < 0) return;
+        const id = s.slice(0, a), n = Number(s.slice(b + 1, c)), got = parts.get(id) || [];
+        got.push(s.slice(c + 1));
+        if (got.length < n) return void parts.set(id, got);
+        parts.delete(id);
+        let msg; try { msg = JSON.parse(got.join('')); } catch { return; }
+        if (msg && typeof msg === 'object') onMsg(msg);
+      };
+      dc.onclose = () => onClose?.();
+      const send = obj => (chain = chain.then(async () => {
+        const s = JSON.stringify(obj), n = Math.max(1, Math.ceil(s.length / FRAME)), id = (seq++).toString(36);
+        for (let i = 0; i < n; i++) {
+          while (dc.readyState === 'open' && dc.bufferedAmount > 1 << 20) await new Promise(r => setTimeout(r, 25));
+          if (dc.readyState !== 'open') return;
+          dc.send(`${id}|${i}|${n}|${s.slice(i * FRAME, (i + 1) * FRAME)}`);
+        }
+      }).catch(() => {}));
+      return { send, close: () => { try { dc.close(); } catch { /* already closed */ } } };
+    }
+    const prettyCode = id => { const c = String(id).slice(0, 8).toUpperCase(); return c.slice(0, 4) + '-' + c.slice(4); };
+    return { SERVICE, rid: randomHex, proof, publish, subscribe, areaTopic, offer, answer, wire, prettyCode };
+  })();
+
+  return { applyRecord, stampOf, stampNow, Link, toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, isDate, sha256, hashPin, verifyPin, tryPin, PROMO_TYPES, emptyDb, normalizeDb, has, safeKey, isOverdue, isFrozen, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline };
+})();
+</script>
+<script>
+(() => {
+  'use strict';
+  const { toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, isDate, hashPin, tryPin, has, safeKey, isOverdue, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline, emptyDb } = Core;
+  const $ = id => document.getElementById(id);
+  const K_LOW = 'pos.manager.low_stock';
+  const PROVIDERS = ['Clover Link', 'Verifone Network', 'Ingenico Hub', 'PAX', 'Square Stand', 'Generic LAN controller'];
+  const PAY_WORDS = { cash: 'Cash', card_external: 'Card, linked device', card_manual: 'Card, standalone device', account: 'On account', owner_entry: 'Recorded by owner' };
+
+  let DB = null, SALES = [], unlocked = false;
+  const state = { view: 'overview', inv: { q: '', cat: '', low: false, sort: 'name', dir: 1 }, cust: { q: '', show: 'all' } };
+  let lowAt = Number(localStorage.getItem(K_LOW)); if (!(lowAt >= 0) || localStorage.getItem(K_LOW) === null) lowAt = 5;
+
+  function toast(text, kind = '') {
+    const el = h('div', { class: 'toast ' + kind, text });
+    $('toasts').append(el); setTimeout(() => el.remove(), kind === 'bad' ? 6000 : 3200);
+  }
+  for (const b of document.querySelectorAll('dialog [data-close]')) b.addEventListener('click', () => b.closest('dialog').close(''));
+
+  /* ---------- dialogs ---------- */
+  function ask({ title, body = [], buttons }) {
+    const dlg = $('askDlg');
+    $('askTitle').textContent = title;
+    $('askBody').replaceChildren(...[].concat(body).map(b => typeof b === 'string' ? h('p', { text: b }) : b));
+    $('askBtns').replaceChildren(...buttons.map(b => b.cancel
+      ? h('button', { type: 'button', class: 'btn', text: b.label, onclick: () => dlg.close('') })
+      : h('button', { value: b.value, class: 'btn ' + (b.kind || ''), text: b.label })));
+    return new Promise(res => { dlg.addEventListener('close', () => res(dlg.returnValue), { once: true }); dlg.returnValue = ''; dlg.showModal(); });
+  }
+  const confirmDelete = (what, detail) => ask({ title: `Delete ${what}?`, body: detail || 'This cannot be undone.', buttons: [{ label: 'Keep it', cancel: true }, { label: 'Delete', value: 'yes', kind: 'danger' }] }).then(v => v === 'yes');
+
+  function askPin(title) {
+    const dlg = $('pinDlg'), form = dlg.querySelector('form'), input = $('pinInput');
+    $('pinTitle').textContent = title; input.value = ''; $('pinErr').textContent = '';
+    return new Promise(res => {
+      const submit = e => {
+        e.preventDefault();
+        const r = tryPin(input.value, DB.settings.pin_hash);
+        if (r.ok) return dlg.close('ok');
+        input.value = ''; $('pinErr').textContent = r.wait ? `Too many wrong tries. Wait ${r.wait} seconds, then try again.` : 'That PIN is not right.';
+      };
+      form.addEventListener('submit', submit);
+      dlg.addEventListener('close', () => { form.removeEventListener('submit', submit); res(dlg.returnValue === 'ok'); }, { once: true });
+      dlg.returnValue = ''; dlg.showModal(); input.focus();
+    });
+  }
+
+  /* One form dialog for every record type. onSubmit returns an error string to keep the dialog open. */
+  const NUMERIC = ['money', 'number', 'int'];
+  function openForm({ title, lead, fields, submit = 'Save', onSubmit }) {
+    const dlg = $('formDlg'), form = dlg.querySelector('form');
+    $('formTitle').textContent = title; $('formLead').textContent = lead || ''; $('formLead').hidden = !lead;
+    $('formOk').textContent = submit; $('formErr').textContent = '';
+    $('formFields').replaceChildren(...fields.map(f => {
+      const id = 'f_' + f.name, hint = f.hint ? h('span', { class: 'hint', text: f.hint }) : null;
+      if (f.type === 'checkbox') return h('div', { class: 'field check' }, h('label', {}, h('input', { id, name: f.name, type: 'checkbox', checked: !!f.value }), f.label), hint);
+      let input;
+      if (f.type === 'select') input = h('select', { id, name: f.name }, f.options.map(([v, l]) => h('option', { value: v, selected: v === f.value, text: l })));
+      else input = h('input', {
+        id, name: f.name, type: NUMERIC.includes(f.type) ? 'number' : f.type || 'text',
+        step: f.type === 'money' ? '0.01' : f.type === 'int' ? '1' : f.type === 'number' ? 'any' : null, min: f.min, max: f.max,
+        inputmode: f.type === 'money' || f.type === 'number' ? 'decimal' : f.inputmode, maxlength: f.maxlength, placeholder: f.placeholder,
+        list: f.list ? id + '_list' : null, readonly: f.readonly, autocomplete: 'off', spellcheck: 'false', value: f.value ?? ''
+      });
+      return h('div', { class: 'field' }, h('label', { for: id, text: f.label }), input,
+        f.list ? h('datalist', { id: id + '_list' }, f.list.map(v => h('option', { value: v }))) : null, hint);
+    }));
+    return new Promise(res => {
+      let saved = false;
+      const onsubmit = async e => {
+        e.preventDefault();
+        const vals = {};
+        for (const f of fields) {
+          const el = form.elements[f.name];
+          vals[f.name] = f.type === 'checkbox' ? el.checked : NUMERIC.includes(f.type) ? (el.value === '' ? null : Number(el.value)) : el.value.trim();
+          if (NUMERIC.includes(f.type) && vals[f.name] !== null && !Number.isFinite(vals[f.name])) return void ($('formErr').textContent = `${f.label} must be a number.`);
+        }
+        try {
+          const problem = await onSubmit(vals);
+          if (problem) return void ($('formErr').textContent = problem);
+          saved = true; dlg.close('ok');
+        } catch (err) { $('formErr').textContent = `Could not save: ${err.message}`; }
+      };
+      form.addEventListener('submit', onsubmit);
+      dlg.addEventListener('close', () => { form.removeEventListener('submit', onsubmit); res(saved); }, { once: true });
+      dlg.showModal();
+      (form.querySelector('.field input:not([readonly]), .field select') || $('formOk')).focus();
+    });
+  }
+
+  /* ---------- data helpers ---------- */
+  async function save(change, records) {
+    DB = await Store.update(core => { change(core); Core.stampNow(core); freezeOverdue(core); }, records);
+    if (records?.length) SALES = await Store.allSales();
+    renderAll(); Host.broadcast();
+  }
+  const categories = () => [...new Set(Object.values(DB.inventory).map(i => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const lowItems = () => Object.entries(DB.inventory).filter(([, i]) => i.stock !== null && i.stock <= lowAt).sort((a, b) => a[1].stock - b[1].stock);
+  const stockMark = n => n === null ? null : n <= 0 ? h('span', { class: 'tagmark bad', text: n < 0 ? 'Oversold' : 'Out' }) : n <= lowAt ? h('span', { class: 'tagmark', text: 'Low' }) : null;
+  const custMark = c => isOverdue(c) ? h('span', { class: 'tagmark bad', text: 'Frozen, past due' })
+    : c.status === 'frozen' ? h('span', { class: 'tagmark bad', text: 'Frozen' })
+    : toCents(c.balance_due) > 0 ? h('span', { class: 'tagmark', text: 'Owing' }) : h('span', { class: 'tagmark good', text: 'Clear' });
+  const newId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 5)).toUpperCase();
+
+  function table(cols, rows, empty) {
+    if (!rows.length) return h('p', { class: 'empty', text: empty });
+    return h('div', { class: 'table-wrap' }, h('table', {},
+      h('thead', {}, h('tr', {}, cols.map(c => h('th', { class: c.cls, scope: 'col' }, c.head || c.label)))),
+      h('tbody', {}, rows.map(r => h('tr', {}, cols.map(c => h('td', { class: c.cls }, c.cell(r))))))));
+  }
+  const head = (title, lead, ...actions) => h('header', { class: 'view-head' }, h('div', {}, h('h1', { text: title }), lead ? h('p', { text: lead }) : null), h('div', { class: 'tools', style: 'margin:0' }, actions));
+  const link = (text, onclick, danger) => h('button', { type: 'button', class: 'link' + (danger ? ' danger' : ''), text, onclick });
+
+  /* ---------- views ---------- */
+  const VIEWS = {
+    overview: { label: 'Overview', draw: drawOverview },
+    inventory: { label: 'Inventory', draw: drawInventory, count: () => lowItems().length },
+    customers: { label: 'Customers', draw: drawCustomers, count: () => Object.values(DB.customers).filter(c => isOverdue(c) || c.status === 'frozen').length },
+    promotions: { label: 'Promotions', draw: drawPromotions },
+    devices: { label: 'Payment devices', draw: drawDevices },
+    settings: { label: 'Settings', draw: drawSettings },
+    sales: { label: 'Sales', draw: drawSales }
+  };
+  function renderAll() {
+    if (!unlocked) return;
+    $('storeName').textContent = (DB.settings.receipt_header || '').split(/\r?\n/)[0].trim() || 'No store name yet';
+    $('navList').replaceChildren(...Object.entries(VIEWS).map(([key, v]) => {
+      const n = v.count ? v.count() : 0;
+      return h('li', {}, h('button', { type: 'button', class: 'nav', 'aria-current': key === state.view ? 'page' : null, onclick: () => { state.view = key; renderAll(); window.scrollTo(0, 0); } },
+        h('span', { text: v.label }), n ? h('span', { class: 'count', text: n, title: key === 'inventory' ? 'Items running low' : 'Frozen accounts' }) : null));
+    }));
+    const active = document.activeElement; let keep = null;
+    if (active && active.id && $('view').contains(active)) { keep = { id: active.id, at: null }; try { keep.at = active.selectionStart; } catch { /* not a text field */ } }
+    $('view').replaceChildren(...Host.requests(), ...[].concat(VIEWS[state.view].draw()));
+    if (keep && $(keep.id)) { $(keep.id).focus(); if (keep.at != null) try { $(keep.id).setSelectionRange(keep.at, keep.at); } catch { /* not a text field */ } }
+  }
+
+  function drawOverview() {
+    const today = isoDate(), todays = SALES.filter(s => isoDate(new Date(s.ts)) === today);
+    const taken = todays.filter(s => s.payment?.method !== 'account').reduce((t, s) => t + toCents(s.total), 0);
+    const charged = todays.filter(s => s.payment?.method === 'account').reduce((t, s) => t + toCents(s.total), 0);
+    const custs = Object.entries(DB.customers), owing = custs.filter(([, c]) => toCents(c.balance_due) > 0);
+    const frozen = custs.filter(([, c]) => isOverdue(c) || c.status === 'frozen'), low = lowItems();
+    const stat = (label, value, note, warn) => h('div', { class: warn ? 'warn' : null }, h('dt', { text: label }), h('dd', {}, value, note ? h('small', { text: note }) : null));
+    return [
+      head('Overview', 'Where the shop stands on this computer right now.'),
+      h('dl', { class: 'ledger' },
+        stat('Taken today', fmt(taken), `${todays.length} transaction${todays.length === 1 ? '' : 's'}${charged ? `, plus ${fmt(charged)} put on account` : ''}`),
+        stat('Owed on account', fmt(owing.reduce((t, [, c]) => t + toCents(c.balance_due), 0)), `${owing.length} customer${owing.length === 1 ? '' : 's'}`),
+        stat('Frozen accounts', String(frozen.length), frozen.length ? 'Cannot buy on credit until settled' : 'None', frozen.length > 0),
+        stat('Running low', String(low.length), `At or under ${lowAt} in stock`, low.length > 0)),
+      h('div', { class: 'cols' },
+        h('section', {}, h('h2', { text: 'Restock soon' }), low.length
+          ? h('ul', { class: 'plain-list' }, low.slice(0, 8).map(([, i]) => h('li', {}, h('span', { text: i.name }), h('span', {}, `${i.stock} left `, stockMark(i.stock)))))
+          : h('p', { class: 'empty', text: Object.keys(DB.inventory).length ? 'Every item is above the low-stock line.' : 'No items yet. Add them under Inventory, or import a sync file.' })),
+        h('section', {}, h('h2', { text: 'Getting changes to the register' }), h('ol', { class: 'steps' },
+          h('li', { text: 'Press Compile & Export Sync File and enter your PIN. The browser saves inventory_db.json.' }),
+          h('li', { text: 'Carry the file to the register and drop it anywhere on the checkout screen.' }),
+          h('li', { text: 'Enter your PIN on the register. It switches to the new data at once.' })),
+          h('p', { style: 'color:var(--mute);max-width:62ch', text: 'If the register runs in this same browser, it already shares this data and needs no file.' })))
+    ];
+  }
+
+  function drawInventory() {
+    const s = state.inv, host = h('div');
+    if (s.cat && !categories().includes(s.cat)) s.cat = '';
+    const sortBtn = (label, key) => h('button', { type: 'button', 'aria-pressed': String(s.sort === key), text: label + (s.sort === key ? (s.dir > 0 ? ' \u2191' : ' \u2193') : ''), onclick: () => { s.dir = s.sort === key ? -s.dir : 1; s.sort = key; fill(); } });
+    function fill() {
+      const q = s.q.toLowerCase();
+      const rows = Object.entries(DB.inventory).map(([code, i]) => ({ code, ...i }))
+        .filter(r => (!q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)) && (!s.cat || r.category === s.cat) && (!s.low || (r.stock !== null && r.stock <= lowAt)))
+        .sort((a, b) => {
+          const x = a[s.sort], y = b[s.sort];
+          if (x === null || y === null) return (x === null) - (y === null);                     // blanks always last
+          return s.dir * (typeof x === 'number' ? x - y : String(x).localeCompare(String(y)));
+        });
+      host.replaceChildren(table([
+        { head: sortBtn('Barcode', 'code'), cls: 'code', cell: r => r.code },
+        { head: sortBtn('Item', 'name'), cell: r => r.name },
+        { head: sortBtn('Category', 'category'), cell: r => r.category || '\u2013' },
+        { head: sortBtn('Price', 'price'), cls: 'num', cell: r => r.price === null ? 'Typed at the register' : r.sale_price > 0 && r.sale_price < r.price ? [h('s', { class: 'was', text: fmt(toCents(r.price)) }), fmt(toCents(r.sale_price))] : fmt(toCents(r.price)) },
+        { head: sortBtn('In stock', 'stock'), cls: 'num', cell: r => r.stock === null ? 'Not counted' : [stockMark(r.stock), ' ', String(r.stock)] },
+        { label: 'Taxed', cell: r => r.taxable ? 'Yes' : 'No' },
+        { label: '', cls: 'acts', cell: r => [link('Edit', () => editItem(r.code)), link('Delete', async () => { if (await confirmDelete(r.name)) save(c => { delete c.inventory[r.code]; }); }, true)] }
+      ], rows, Object.keys(DB.inventory).length ? 'No items match those filters.' : 'No items yet. Press Add item to enter the first one.'));
+      for (const tr of host.querySelectorAll('tbody tr')) if (tr.querySelector('.tagmark')) tr.classList.add('is-low');
+    }
+    fill();
+    return [
+      head('Inventory', `${Object.keys(DB.inventory).length} items on file. Only the barcode is required; leave any other field empty.`, h('button', { type: 'button', class: 'btn primary', text: 'Add item', onclick: () => editItem(null) })),
+      h('div', { class: 'tools' },
+        h('input', { id: 'invSearch', type: 'search', placeholder: 'Search name, barcode or category', 'aria-label': 'Search inventory', value: s.q, oninput: e => { s.q = e.target.value; fill(); } }),
+        h('select', { 'aria-label': 'Category', onchange: e => { s.cat = e.target.value; fill(); } }, h('option', { value: '', text: 'All categories' }), categories().map(c => h('option', { value: c, text: c, selected: c === s.cat }))),
+        h('label', {}, h('input', { type: 'checkbox', checked: s.low, onchange: e => { s.low = e.target.checked; fill(); } }), 'Low stock only'),
+        h('label', {}, 'Alert at or under', h('input', { id: 'lowAt', class: 'narrow', type: 'number', min: '0', step: '1', value: lowAt, onchange: e => { lowAt = Math.max(0, Math.trunc(Number(e.target.value)) || 0); localStorage.setItem(K_LOW, String(lowAt)); renderAll(); } }))),
+      host
+    ];
+  }
+  function editItem(code) {
+    const it = code ? DB.inventory[code] : null;
+    openForm({
+      title: it ? `Edit ${it.name}` : 'Add an item',
+      fields: [
+        { name: 'code', label: 'Barcode', value: code || '', readonly: !!it, hint: it ? null : 'Scan or type it. This is what the register looks up.' },
+        { name: 'name', label: 'Item name', value: it?.name, hint: 'Leave empty to show the barcode instead.' },
+        { name: 'category', label: 'Category', value: it?.category, list: categories() },
+        { name: 'price', label: 'Regular price ($)', type: 'money', min: '0', value: it && it.price !== null ? it.price.toFixed(2) : '', hint: 'Leave empty and the cashier types the price each time, for example for loose produce.' },
+        { name: 'sale_price', label: 'Sale price ($)', type: 'money', min: '0', value: it?.sale_price ? it.sale_price.toFixed(2) : '', hint: 'Leave empty when the item is not on sale.' },
+        { name: 'stock', label: 'In stock', type: 'int', value: it ? (it.stock ?? '') : '', hint: 'Leave empty if you do not count this item.' },
+        { name: 'taxable', label: 'Sales tax applies to this item', type: 'checkbox', value: it?.taxable }
+      ],
+      onSubmit: async v => {
+        const key = it ? code : safeKey(v.code);
+        if (!key || /\s/.test(key)) return 'Enter a barcode without spaces.';
+        if (!it && has(DB.inventory, key)) return `Barcode ${key} already belongs to ${DB.inventory[key].name}.`;
+        if (v.price !== null && !(v.price >= 0)) return 'The regular price cannot be negative.';
+        if (v.sale_price && v.price === null) return 'A sale price needs a regular price.';
+        if (v.sale_price && (v.sale_price < 0 || v.sale_price >= v.price)) return 'The sale price must be lower than the regular price.';
+        if (v.stock !== null && !Number.isInteger(v.stock)) return 'Stock must be a whole number, or empty.';
+        await save(c => { c.inventory[key] = { name: v.name || `Item ${key}`, price: v.price === null ? null : toMoney(toCents(v.price)), sale_price: toMoney(toCents(v.sale_price || 0)), stock: v.stock, category: v.category, taxable: v.taxable }; });
+      }
+    });
+  }
+
+  function drawCustomers() {
+    const s = state.cust, host = h('div');
+    function fill() {
+      const q = s.q.toLowerCase(), digits = phoneKey(s.q);
+      const rows = Object.entries(DB.customers).map(([phone, c]) => ({ phone, ...c }))
+        .filter(r => (!q || r.name.toLowerCase().includes(q) || (digits && r.phone.includes(digits))) && (s.show === 'all' || (s.show === 'owing' && r.balance_due > 0) || (s.show === 'frozen' && (isOverdue(r) || r.status === 'frozen'))))
+        .sort((a, b) => b.balance_due - a.balance_due || a.name.localeCompare(b.name));
+      host.replaceChildren(table([
+        { label: 'Phone (account no.)', cls: 'code', cell: r => r.phone },
+        { label: 'Name', cell: r => r.name },
+        { label: 'Balance due', cls: 'num', cell: r => fmt(toCents(r.balance_due)) },
+        { label: 'Due date', cell: r => r.due_date || '\u2013' },
+        { label: 'Status', cell: custMark },
+        { label: '', cls: 'acts', cell: r => [
+          r.balance_due > 0 ? link('Record payment', () => recordPayment(r.phone)) : null,
+          isOverdue(r) ? null : link(r.status === 'frozen' ? 'Unfreeze' : 'Freeze', () => save(c => { c.customers[r.phone].status = r.status === 'frozen' ? 'active' : 'frozen'; })),
+          link('Edit', () => editCustomer(r.phone)),
+          link('Delete', async () => { if (await confirmDelete(r.name, r.balance_due > 0 ? `${r.name} still owes ${fmt(toCents(r.balance_due))}. Deleting the account erases that balance.` : null)) save(c => { delete c.customers[r.phone]; }); }, true)] }
+      ], rows, Object.keys(DB.customers).length ? 'No customers match.' : 'No customer accounts yet. Press Add customer to open the first one.'));
+    }
+    fill();
+    return [
+      head('Customers', 'Each account is identified by its phone number. Past-due accounts freeze on their own until the balance is paid.', h('button', { type: 'button', class: 'btn primary', text: 'Add customer', onclick: () => editCustomer(null) })),
+      h('div', { class: 'tools' },
+        h('input', { id: 'custSearch', type: 'search', placeholder: 'Search phone number or name', 'aria-label': 'Search customers', value: s.q, oninput: e => { s.q = e.target.value; fill(); } }),
+        h('select', { 'aria-label': 'Show', onchange: e => { s.show = e.target.value; fill(); } }, [['all', 'All accounts'], ['owing', 'With a balance'], ['frozen', 'Frozen']].map(([v, l]) => h('option', { value: v, text: l, selected: v === s.show })))),
+      host
+    ];
+  }
+  function editCustomer(phone) {
+    const c = phone ? DB.customers[phone] : null;
+    openForm({
+      title: c ? `Edit ${c.name}` : 'Add a customer account',
+      fields: [
+        { name: 'phone', label: 'Phone number (account number)', value: phone || '', readonly: !!c, inputmode: 'tel' },
+        { name: 'name', label: 'Name', value: c?.name },
+        { name: 'balance_due', label: 'Balance due ($)', type: 'money', min: '0', value: c ? c.balance_due.toFixed(2) : '0.00' },
+        { name: 'due_date', label: 'Due date', type: 'date', value: c?.due_date || '', hint: `Leave empty and a balance gets ${DB.settings.global_credit_duration_days} days from today.` },
+        { name: 'status', label: 'Status', type: 'select', value: c?.status || 'active', options: [['active', 'Active'], ['frozen', 'Frozen (no purchases on this account)']] }
+      ],
+      onSubmit: async v => {
+        const key = c ? phone : phoneKey(v.phone);
+        if (key.length < 4 || key.length > 15) return 'Enter the phone number, digits only (4 to 15 digits).';
+        if (!c && has(DB.customers, key)) return `${key} already belongs to ${DB.customers[key].name}.`;
+        if (!v.name) return 'Enter the customer\u2019s name.';
+        if (!(v.balance_due >= 0)) return 'The balance cannot be negative.';
+        if (v.due_date && !isDate(v.due_date)) return 'Pick a valid due date.';
+        const owes = toCents(v.balance_due) > 0;
+        await save(core => { core.customers[key] = { name: v.name, balance_due: toMoney(toCents(v.balance_due)), due_date: owes ? (v.due_date || addDays(isoDate(), core.settings.global_credit_duration_days)) : null, status: v.status }; });
+      }
+    });
+  }
+  function recordPayment(phone) {
+    const c = DB.customers[phone], owed = toCents(c.balance_due);
+    openForm({
+      title: `Record a payment from ${c.name}`, lead: `${fmt(owed)} is owing${c.due_date ? `, due ${c.due_date}` : ''}.`, submit: 'Record payment',
+      fields: [{ name: 'amount', label: 'Amount received ($)', type: 'money', min: '0.01', value: (owed / 100).toFixed(2) }],
+      onSubmit: async v => {
+        const amt = toCents(v.amount);
+        if (!(amt > 0) || amt > owed) return `Enter an amount from $0.01 to ${fmt(owed)}.`;
+        const rec = { id: newId(), ts: new Date().toISOString(), type: 'account_payment', station: 'OWNER', total: toMoney(amt), payment: { method: 'owner_entry' }, customer: phone, customer_name: c.name };
+        await save(core => {
+          const a = core.customers[phone], left = Math.max(0, toCents(a.balance_due) - amt);
+          a.balance_due = toMoney(left);
+          if (left === 0) { a.due_date = null; a.status = 'active'; }
+          rec.account = { balance_after: a.balance_due, due_date: a.due_date };
+        }, [rec]);
+        toast(`Recorded ${fmt(amt)} from ${c.name}.`, 'good');
+      }
+    });
+  }
+
+  const promoWords = p => p.type === 'percentage' ? `${p.value}% off when scanned` : p.type === 'clearance' ? `Clearance, ${p.value}% off, always on` : p.applies_to === 'all' ? `${fmt(toCents(p.value))} off the order when scanned` : `${fmt(toCents(p.value))} off each when scanned`;
+  const targetWords = t => t === 'all' ? 'Everything' : has(DB.inventory, t) ? `${DB.inventory[t].name} (${t})` : `Category: ${t}`;
+  function drawPromotions() {
+    const rows = Object.entries(DB.promotions).map(([code, p]) => ({ code, ...p })).sort((a, b) => a.code.localeCompare(b.code));
+    return [
+      head('Promotions', 'Coupons take effect when the cashier scans or types the code. Clearance markdowns are always on, and coupons skip clearance items.', h('button', { type: 'button', class: 'btn primary', text: 'Add promotion', onclick: () => editPromo(null) })),
+      table([
+        { label: 'Code or barcode', cls: 'code', cell: r => r.code },
+        { label: 'What it does', cell: promoWords },
+        { label: 'Applies to', cell: r => targetWords(r.applies_to) },
+        { label: '', cls: 'acts', cell: r => [link('Edit', () => editPromo(r.code)), link('Delete', async () => { if (await confirmDelete(`promotion ${r.code}`)) save(c => { delete c.promotions[r.code]; }); }, true)] }
+      ], rows, 'No promotions yet. Press Add promotion to create a coupon or a clearance markdown.')
+    ];
+  }
+  function editPromo(code) {
+    const p = code ? DB.promotions[code] : null;
+    openForm({
+      title: p ? `Edit promotion ${code}` : 'Add a promotion',
+      fields: [
+        { name: 'code', label: 'Code or barcode', value: code || '', readonly: !!p, hint: p ? null : 'What the cashier scans or types. Use an item\u2019s own barcode to apply it whenever that item is sold.' },
+        { name: 'type', label: 'Kind', type: 'select', value: p?.type || 'percentage', options: [['percentage', 'Percentage off (coupon)'], ['fixed', 'Dollar amount off (coupon)'], ['clearance', 'Clearance markdown (always on)']] },
+        { name: 'value', label: 'Amount', type: 'number', min: '0', value: p?.value ?? '', hint: 'A percent for percentage and clearance. Dollars for a dollar coupon: off each matching unit, or once off the order when it applies to all.' },
+        { name: 'applies_to', label: 'Applies to', value: p?.applies_to || 'all', list: ['all', ...categories(), ...Object.keys(DB.inventory)], hint: 'Type all, a category name, or one item\u2019s barcode.' }
+      ],
+      onSubmit: async v => {
+        const key = p ? code : safeKey(v.code);
+        if (!key || /\s/.test(key)) return 'Enter a code without spaces.';
+        if (!p && has(DB.promotions, key)) return `Code ${key} is already in use.`;
+        if (!(v.value > 0)) return 'Enter an amount above zero.';
+        if (v.type !== 'fixed' && v.value > 100) return 'A percentage cannot be more than 100.';
+        let target = v.applies_to.toLowerCase() === 'all' || !v.applies_to ? 'all' : v.applies_to;
+        if (target !== 'all' && !has(DB.inventory, target)) {
+          const category = categories().find(c => c.toLowerCase() === target.toLowerCase());
+          if (!category) return `No item barcode or category matches \u201c${target}\u201d.`;
+          target = category;
+        }
+        await save(c => { c.promotions[key] = { type: v.type, value: v.value, applies_to: target }; });
+      }
+    });
+  }
+
+  function drawDevices() {
+    const pd = DB.payment_devices, rows = Object.entries(pd.profiles).map(([id, p]) => ({ id, ...p }));
+    return [
+      head('Payment devices', 'Register each card terminal here. A register asks once which of these it should push card totals to.', h('button', { type: 'button', class: 'btn primary', text: 'Add device profile', onclick: () => editDevice(null) })),
+      table([
+        { label: 'Label', cell: r => [r.label, r.id === pd.ACTIVE_PROFILE_ID ? [' ', h('span', { class: 'tagmark', text: 'Default push target' })] : null] },
+        { label: 'Provider', cell: r => r.provider_name || '\u2013' },
+        { label: 'Connects by', cell: r => r.connection_type === 'SERIAL_COM' ? 'Serial port' : 'Local LAN IP' },
+        { label: 'Address', cls: 'code', cell: r => r.endpoint_address || '\u2013' },
+        { label: '', cls: 'acts', cell: r => [
+          r.id === pd.ACTIVE_PROFILE_ID ? null : link('Make default', () => save(c => { c.payment_devices.ACTIVE_PROFILE_ID = r.id; })),
+          link('Edit', () => editDevice(r.id)),
+          link('Delete', async () => { if (await confirmDelete(r.label, 'Registers mapped to this device will ask which device to use next time.')) save(c => { delete c.payment_devices.profiles[r.id]; if (c.payment_devices.ACTIVE_PROFILE_ID === r.id) c.payment_devices.ACTIVE_PROFILE_ID = Object.keys(c.payment_devices.profiles)[0] || ''; }); }, true)] }
+      ], rows, 'No card devices yet. Until one is added, cashiers use Manual Standalone Card Device Capture.'),
+      h('details', { class: 'note' }, h('summary', { text: 'What the register sends to a device' }),
+        h('p', { text: 'For a LAN address the register sends an HTTP POST (or a WebSocket message for ws:// addresses); for a serial port it writes one line. The body is always this JSON:' }),
+        h('pre', { text: '{ "type": "sale", "amount": "24.18", "amount_cents": 2418,\n  "currency": "USD", "reference": "SALE-ID", "station": "REG-AB12" }' }),
+        h('p', { text: 'It then waits up to two minutes for a reply whose "status" is approved (or success, ok, paid) or declined (or failed, cancelled). Anything else is treated as not approved. A device that speaks its maker\u2019s own protocol needs a small bridge on the LAN that translates to this exchange and allows cross-origin requests.' }),
+        h('p', { text: 'For a dry run with no hardware, use the address sim://approve or sim://decline. Receipts from it are marked as test mode.' }))
+    ];
+  }
+  function editDevice(id) {
+    const pd = DB.payment_devices, p = id ? pd.profiles[id] : null;
+    openForm({
+      title: p ? `Edit ${p.label}` : 'Add a device profile',
+      fields: [
+        { name: 'label', label: 'Label', value: p?.label, placeholder: 'Front counter Clover', hint: 'What cashiers see when they pick a device.' },
+        { name: 'provider_name', label: 'Provider', value: p?.provider_name, list: PROVIDERS },
+        { name: 'connection_type', label: 'Connects by', type: 'select', value: p?.connection_type || 'LAN_IP', options: [['LAN_IP', 'Local LAN IP'], ['SERIAL_COM', 'Serial port']] },
+        { name: 'endpoint_address', label: 'Address', value: p?.endpoint_address, placeholder: '110.12.0.45:8080/v2/sale', hint: 'LAN: host:port/path, or a ws:// address. Serial: the port and speed, for example COM3@9600.' },
+        { name: 'is_default', label: 'Make this the default push target', type: 'checkbox', value: !p ? !pd.ACTIVE_PROFILE_ID : pd.ACTIVE_PROFILE_ID === id }
+      ],
+      onSubmit: async v => {
+        if (!v.label) return 'Give the device a label.';
+        if (!v.endpoint_address) return 'Enter the device address.';
+        const key = id || 'dev_' + newId().toLowerCase();
+        await save(c => {
+          c.payment_devices.profiles[key] = { provider_name: v.provider_name, connection_type: v.connection_type, endpoint_address: v.endpoint_address, label: v.label };
+          if (v.is_default || !has(c.payment_devices.profiles, c.payment_devices.ACTIVE_PROFILE_ID)) c.payment_devices.ACTIVE_PROFILE_ID = key;
+        });
+      }
+    });
+  }
+
+  function drawSettings() {
+    const s = DB.settings;
+    const row = (title, note, control, tall) => h('div', { class: 'setting' + (tall ? ' tall' : '') }, h('div', {}, h('strong', { text: title }), h('span', { text: note })), control);
+    const toggle = (key, label) => h('button', { type: 'button', class: 'toggle', role: 'switch', 'aria-checked': String(!!s[key]), 'aria-label': label, onclick: () => save(c => { c.settings[key] = !c.settings[key]; }) });
+    const num = (id, key, max, int, label) => h('input', { id, class: 'narrow', type: 'number', min: '0', max, step: int ? '1' : 'any', value: s[key], 'aria-label': label, onchange: e => {
+      let n = Number(e.target.value); if (!(n >= 0)) n = 0; n = Math.min(Number(max), int ? Math.trunc(n) : n);
+      save(c => { c.settings[key] = n; }).then(() => toast('Saved.', 'good'));
+    } });
+    return [
+      head('Settings', 'These apply to every register that loads your next sync file.'),
+      h('div', { class: 'panel' },
+        row('Receipt printing', 'When off, registers skip every print job.', toggle('printing_enabled', 'Receipt printing')),
+        row('Lines of credit', 'When off, the Charge to Account button disappears from registers.', toggle('credit_allowed_globally', 'Lines of credit')),
+        row('Credit payment window', 'Days a customer has to pay after their first unpaid charge.', h('label', { style: 'display:flex;align-items:center;gap:8px' }, num('setDays', 'global_credit_duration_days', '365', true, 'Credit payment window in days'), 'days')),
+        row('Sales tax rate', 'Charged on items marked as taxed.', h('label', { style: 'display:flex;align-items:center;gap:8px' }, num('setTax', 'tax_rate_percent', '100', false, 'Sales tax rate in percent'), '%')),
+        row('Receipt header', 'Printed at the top of every receipt. The first line is the store name.', h('textarea', { id: 'setHeader', rows: '4', 'aria-label': 'Receipt header', onchange: e => save(c => { c.settings.receipt_header = e.target.value.trim(); }).then(() => toast('Saved.', 'good')) }, s.receipt_header), true),
+        row('System PIN', 'Unlocks this manager, exports the sync file, and lets a register load it.', h('button', { type: 'button', class: 'btn', text: 'Change PIN', onclick: changePin }))),
+      ...Host.settings(row)
+    ];
+  }
+  async function changePin() {
+    if (!(await askPin('Enter your current PIN'))) return;
+    const ok = await openForm({
+      title: 'Choose a new PIN', submit: 'Change PIN', lead: 'Registers pick up the new PIN from the next sync file they load. That load is approved with the old PIN.',
+      fields: [{ name: 'a', label: 'New 4-digit PIN', type: 'password', inputmode: 'numeric', maxlength: '4' }, { name: 'b', label: 'Type it again', type: 'password', inputmode: 'numeric', maxlength: '4' }],
+      onSubmit: async v => {
+        if (!/^\d{4}$/.test(v.a)) return 'The PIN is exactly 4 digits.';
+        if (v.a !== v.b) return 'The two PINs do not match.';
+        await save(c => { c.settings.pin_hash = hashPin(v.a); });
+      }
+    });
+    if (ok) toast('PIN changed.', 'good');
+  }
+
+  function drawSales() {
+    const rows = SALES.slice(-300).reverse();
+    const stamp = ts => { const d = new Date(ts); return `${isoDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+    return [
+      head('Sales', `${SALES.length} record${SALES.length === 1 ? '' : 's'} on this computer${SALES.length > 300 ? ', newest 300 shown' : ''}. Sales made on another register arrive when you import its sync file.`),
+      table([
+        { label: 'When', cell: r => stamp(r.ts) },
+        { label: 'No.', cls: 'code', cell: r => r.id },
+        { label: 'What', cell: r => r.type === 'account_payment' ? 'Payment on account' : `${(r.items || []).reduce((n, i) => n + i.qty, 0)} items` },
+        { label: 'Paid by', cell: r => (PAY_WORDS[r.payment?.method] || '\u2013') + (r.payment?.test ? ' (test)' : '') },
+        { label: 'Customer', cell: r => r.customer_name || '\u2013' },
+        { label: 'Register', cell: r => r.station || '\u2013' },
+        { label: 'Total', cls: 'num', cell: r => fmt(toCents(r.total)) }
+      ], rows, 'No sales recorded yet.')
+    ];
+  }
+
+  /* ---------- Wi-Fi sync: this page as the host ----------
+     Registers connect over the shop Wi-Fi. The host keeps the one true copy: it applies each reported sale once (by id)
+     to stock and balances, and sends the result, plus every owner change, back out to all registers. */
+  const K_HOST = 'pos.host';
+  const Host = (() => {
+    const { Link } = Core;
+    let cfg; try { cfg = JSON.parse(localStorage.getItem(K_HOST)); } catch { cfg = null; }
+    cfg = { enabled: false, id: Link.rid(10), name: '', links: {}, ...(cfg && typeof cfg === 'object' ? cfg : {}) };
+    const persist = () => localStorage.setItem(K_HOST, JSON.stringify(cfg));
+    const peers = new Map(), waiting = new Map();
+    let stop = null, up = false, run = 0, lastHello = 0, offers = [], queue = Promise.resolve();
+    const serial = job => (queue = queue.then(job).catch(e => console.warn('Wi-Fi sync', e)));
+    const hostName = () => cfg.name || (DB?.settings.receipt_header || '').split(/\r?\n/)[0].trim() || 'Shop host';
+    const bare = () => { const { _pending, ...core } = DB; return core; };
+
+    function paint() {
+      const n = waiting.size;
+      $('gateWait').hidden = !n; $('gateWait').textContent = n ? `${n} register${n === 1 ? ' is' : 's are'} waiting to join. Unlock to answer.` : '';
+      $('hostLamp').hidden = !cfg.enabled;
+      $('hostLamp').textContent = up ? `Wi-Fi sync on, ${peers.size} register${peers.size === 1 ? '' : 's'} connected` : 'Wi-Fi sync: link service out of reach';
+      if (unlocked && !document.querySelector('dialog[open]')) renderAll();
+    }
+    async function start() {
+      const mine = ++run;
+      stop?.(); stop = null; up = false;
+      if (!cfg.enabled) return paint();
+      let area = null; try { area = await Link.areaTopic(); } catch { /* registers can still type the host code */ }
+      if (mine !== run) return;
+      stop = Link.subscribe(['gpos-h-' + cfg.id, 'gpos-c-' + cfg.id.slice(0, 8), ...(area ? [area] : [])], m => { onSignal(m).catch(() => {}); }, ok => {
+        up = ok; paint();
+        if (ok && Date.now() - lastHello > 600000) { lastHello = Date.now(); Link.publish('gpos-u-' + cfg.id, { t: 'up' }).catch(() => {}); }   // wakes registers that are waiting to retry
+      });
+      paint();
+    }
+    async function onSignal(m) {
+      if (typeof m.reply !== 'string' || !/^gpos-r-[0-9a-f]{24}$/.test(m.reply)) return;
+      if (m.t === 'who') return Link.publish(m.reply, { t: 'host', id: cfg.id, name: hostName() });
+      if (m.t !== 'offer' || typeof m.sdp !== 'string' || m.sdp.length > 4000) return;
+      const now = Date.now(); offers = offers.filter(t => now - t < 60000);
+      if (offers.length >= 20) return;                     // more than 20 connection attempts a minute is not a shop
+      offers.push(now);
+      const a = await Link.answer(m.sdp);
+      const peer = { pc: a.pc, station: '', authed: false, nonce: Link.rid(8) };
+      const giveUp = setTimeout(() => { try { a.pc.close(); } catch { /* closed */ } }, 30000);
+      a.channel.then(dc => { clearTimeout(giveUp); peer.wire = Link.wire(dc, msg => serial(() => fromRegister(peer, msg)), () => drop(peer)); });
+      await Link.publish(m.reply, { t: 'answer', sdp: a.sdp });
+    }
+    function drop(peer) {
+      if (peers.get(peer.station) === peer) peers.delete(peer.station);
+      if (waiting.get(peer.station) === peer) waiting.delete(peer.station);
+      peer.wire?.close(); try { peer.pc.close(); } catch { /* closed */ }
+      paint();
+    }
+    function admit(peer) {
+      const old = peers.get(peer.station); if (old && old !== peer) drop(old);
+      peer.authed = true; peers.set(peer.station, peer);
+      peer.wire.send({ t: 'ready' }); paint();
+    }
+    async function fromRegister(peer, m) {
+      if (m.t === 'hello') {
+        peer.station = String(m.station || '').replace(/[^\w-]/g, '').slice(0, 24); peer.code = String(m.code || '').replace(/\D/g, '').slice(0, 4);
+        if (!peer.station) return drop(peer);
+        const known = cfg.links[peer.station];
+        if (known && m.linked) return peer.wire.send({ t: 'welcome', nonce: peer.nonce, proof: Link.proof(known.key, String(m.nonce), 'host') });
+        const earlier = waiting.get(peer.station); if (earlier && earlier !== peer) drop(earlier);
+        waiting.set(peer.station, peer); peer.wire.send({ t: 'wait' }); return paint();        // the owner decides
+      }
+      if (m.t === 'auth') {
+        const known = cfg.links[peer.station];
+        return known && m.proof === Link.proof(known.key, peer.nonce, 'register') ? admit(peer) : drop(peer);
+      }
+      if (!peer.authed) return;
+      if (m.t === 'state') {
+        const theirs = Core.stampOf({ settings: { last_modified: String(m.stamp || '') } });
+        if (theirs > Core.stampOf(DB)) return peer.wire.send({ t: 'need', what: 'full' });      // the register holds newer owner data than this host
+        await takeSales(peer, m.pending, true);
+        if (m.first) peer.wire.send({ t: 'need', what: 'history' });
+      } else if (m.t === 'sales') await takeSales(peer, m.pending, true);
+      else if (m.t === 'history') await takeSales(peer, m.sales, false, true);
+      else if (m.t === 'full') {
+        const { db } = Core.normalizeDb({ ...m.core, sales_history: Array.isArray(m.sales) ? m.sales : [] });
+        const queued = new Set(Array.isArray(m.pending) ? m.pending : []);
+        if (!(Core.stampOf(db) > Core.stampOf(DB))) return takeSales(peer, db.sales_history.filter(r => queued.has(r.id)), true);
+        db.settings.pin_hash = DB.settings.pin_hash; freezeOverdue(db);                          // newest timestamp wins: adopt it and pass it on
+        DB = await Store.replace(db); SALES = await Store.allSales();
+        send(peer, [...queued]); broadcast(peer); paint();
+      }
+    }
+    /* Stores sales this host has not seen. With apply, their effect on stock and balances is applied exactly once. */
+    async function takeSales(peer, list, apply, quiet) {
+      const recs = (Array.isArray(list) ? list : []).filter(r => r && typeof r === 'object' && typeof r.id === 'string' && r.id).slice(0, 20000);
+      const unseen = await Store.missing(recs.map(r => r.id)), fresh = recs.filter(r => unseen.has(r.id));
+      if (fresh.length) {
+        DB = await Store.update(core => { if (apply) for (const r of fresh) Core.applyRecord(core, r); freezeOverdue(core); }, fresh);
+        SALES = await Store.allSales();
+      }
+      if (quiet) return paint();
+      send(peer, recs.map(r => r.id));
+      if (fresh.length) { broadcast(peer); paint(); }
+    }
+    const send = (peer, acked) => peer.wire.send({ t: 'core', core: bare(), acked });
+    function broadcast(except) { if (!DB) return; for (const peer of peers.values()) if (peer !== except) send(peer, []); }
+
+    function allow(peer) {
+      if (waiting.get(peer.station) !== peer) return;
+      waiting.delete(peer.station);
+      const key = Link.rid(24); cfg.links[peer.station] = { key, added: new Date().toISOString() }; persist();
+      peer.wire.send({ t: 'linked', key, host: { id: cfg.id, name: hostName() } });
+      admit(peer); toast(`${peer.station} is now linked.`, 'good');
+    }
+    function refuse(peer) { peer.wire.send({ t: 'refused' }); setTimeout(() => drop(peer), 300); waiting.delete(peer.station); paint(); }
+    const requests = () => [...waiting.values()].map(peer => h('div', { class: 'join', role: 'alert' },
+      h('p', {}, h('strong', { text: `Register ${peer.station} wants to join. ` }), `Allow it only if its screen shows code ${peer.code || '(none)'}.`),
+      h('button', { type: 'button', class: 'btn primary', text: 'Allow', onclick: () => allow(peer) }),
+      h('button', { type: 'button', class: 'btn', text: 'Refuse', onclick: () => refuse(peer) })));
+
+    function settings(row) {
+      const rows = [row('Wi-Fi sync', 'Registers on the same Wi-Fi send their sales here and pick up your changes on their own. Keep this page open on this computer. Finding each other uses the internet for a moment; shop data only travels over your Wi-Fi.',
+        h('button', { type: 'button', class: 'toggle', role: 'switch', 'aria-checked': String(cfg.enabled), 'aria-label': 'Wi-Fi sync',
+          onclick: () => { cfg.enabled = !cfg.enabled; persist(); if (!cfg.enabled) for (const peer of [...peers.values(), ...waiting.values()]) drop(peer); start(); } }))];
+      if (cfg.enabled) {
+        const stations = Object.keys(cfg.links);
+        rows.push(
+          row('Host name', 'What staff see when a register looks for its host.', h('input', { id: 'hostName', maxlength: '40', 'aria-label': 'Host name', value: hostName(), onchange: e => { cfg.name = e.target.value.trim(); persist(); toast('Saved.', 'good'); } })),
+          row('Host code', 'A register that cannot see this host on its own can be given this code.', h('strong', { class: 'hostcode', text: Link.prettyCode(cfg.id) })),
+          row('Linked registers', stations.length ? 'Each one was allowed once on this screen. Remove one to make it ask again.' : 'None yet. Open the checkout page on a register; it asks for its host, and the request appears here.',
+            stations.length ? h('ul', { class: 'plain-list' }, stations.map(st => h('li', {},
+              h('span', {}, st, ' ', h('span', { class: 'tagmark ' + (peers.has(st) ? 'good' : 'plain'), text: peers.has(st) ? 'Connected' : 'Away' })),
+              link('Remove', () => { const peer = peers.get(st); delete cfg.links[st]; persist(); if (peer) drop(peer); else paint(); }, true)))) : null, true));
+      }
+      return [h('h2', { class: 'panel-title', text: 'Registers on other computers' }), h('div', { class: 'panel' }, rows)];
+    }
+    return { start, broadcast: () => broadcast(), requests, settings };
+  })();
+
+  /* ---------- export and import ---------- */
+  $('exportBtn').addEventListener('click', async () => {
+    if (!(await askPin('Enter your PIN to compile the sync file'))) return;
+    SALES = await Store.allSales();
+    download(compile(DB, SALES), 'inventory_db.json');
+    toast('inventory_db.json compiled and saved by your browser.', 'good');
+  });
+  async function importFiles(files) {
+    if (!unlocked || document.querySelector('dialog[open]')) return;
+    let incoming;
+    try { incoming = await readDbFiles(files); } catch (e) { return toast(e.message, 'bad'); }
+    const next = incoming.db, count = o => Object.keys(o).length;
+    const blank = !count(DB.inventory) && !count(DB.customers) && !count(DB.promotions);
+    let mode = 'replace';
+    if (!blank) {
+      mode = await ask({
+        title: 'How should this file be imported?',
+        body: [`The file holds ${count(next.inventory)} items, ${count(next.customers)} customers and ${next.sales_history.length} sales records.`,
+          h('p', {}, h('strong', { text: 'Pull register activity ' }), 'takes stock counts, customer balances and sales from the file. Your prices, promotions, devices and settings stay as they are here.'),
+          h('p', {}, h('strong', { text: 'Replace everything ' }), 'makes this manager a copy of the file. Your PIN stays.')],
+        buttons: [{ label: 'Cancel', cancel: true }, { label: 'Replace everything', value: 'replace' }, { label: 'Pull register activity', value: 'pull', kind: 'primary' }]
+      });
+      if (!mode) return;
+    }
+    if (!(await askPin('Enter your PIN to import this file'))) return;
+    try {
+      if (mode === 'pull') {
+        DB = await Store.update(core => {
+          for (const [code, it] of Object.entries(next.inventory)) if (has(core.inventory, code) && core.inventory[code].stock !== null && it.stock !== null) core.inventory[code].stock = it.stock;
+          for (const [ph, c] of Object.entries(next.customers)) if (has(core.customers, ph)) Object.assign(core.customers[ph], { balance_due: c.balance_due, due_date: c.due_date, status: c.status });
+          Core.stampNow(core); freezeOverdue(core);
+        }, next.sales_history);
+      } else {
+        next.settings.pin_hash = DB.settings.pin_hash;
+        Core.stampNow(next); freezeOverdue(next);
+        DB = await Store.replace(next);
+      }
+      SALES = await Store.allSales();
+    } catch (e) { return toast(`The import could not be saved: ${e.message}`, 'bad'); }
+    renderAll(); Host.broadcast();
+    toast(`Imported${incoming.skipped.length ? `, ${incoming.skipped.length} bad rows skipped` : ''}.`, 'good');
+  }
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', e => { const files = [...e.target.files]; e.target.value = ''; if (files.length) importFiles(files); });
+  const carriesFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  let dragDepth = 0;
+  window.addEventListener('dragenter', e => { if (unlocked && carriesFiles(e)) { e.preventDefault(); dragDepth++; $('dropVeil').hidden = false; } });
+  window.addEventListener('dragover', e => { if (carriesFiles(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropVeil').hidden = true; } });
+  window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('dropVeil').hidden = true; if (e.dataTransfer?.files?.length) importFiles(e.dataTransfer.files); });
+
+  /* ---------- PIN gate ---------- */
+  function showGate() {
+    unlocked = false;
+    const fresh = !DB?.settings.pin_hash;
+    $('studio').hidden = true; $('gate').hidden = false; $('view').replaceChildren();
+    $('gateTitle').textContent = fresh ? 'Set your system PIN' : 'Owner manager';
+    $('gateLead').textContent = fresh ? 'Choose a 4-digit PIN. It unlocks this manager, authorises every export, and is what a register asks for before it loads your data.' : 'Enter your PIN to open the manager.';
+    $('gatePinLabel').textContent = fresh ? 'New 4-digit PIN' : '4-digit PIN';
+    $('gateAgain').hidden = !fresh; $('gatePin2').required = fresh;
+    $('gateBtn').textContent = fresh ? 'Set PIN and open' : 'Unlock';
+    $('gatePin').value = $('gatePin2').value = ''; $('gateErr').textContent = '';
+    $('gatePin').focus();
+  }
+  $('gateForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pin = $('gatePin').value;
+    try {
+      if (!DB?.settings.pin_hash) {
+        if (!/^\d{4}$/.test(pin)) return void ($('gateErr').textContent = 'The PIN is exactly 4 digits.');
+        if (pin !== $('gatePin2').value) return void ($('gateErr').textContent = 'The two PINs do not match.');
+        DB = await Store.update(c => { if (!c.settings.pin_hash) c.settings.pin_hash = hashPin(pin); });
+        if (!tryPin(pin, DB.settings.pin_hash).ok) return showGate();   // another tab set a PIN first
+      } else {
+        const r = tryPin(pin, DB.settings.pin_hash);
+        if (!r.ok) { $('gatePin').value = ''; return void ($('gateErr').textContent = r.wait ? `Too many wrong tries. Wait ${r.wait} seconds, then try again.` : 'That PIN is not right.'); }
+      }
+      if (needsFreeze(DB)) DB = await Store.update(freezeOverdue);
+      SALES = await Store.allSales();
+      unlocked = true; $('gate').hidden = true; $('studio').hidden = false; renderAll();
+    } catch (err) { $('gateErr').textContent = `Local storage is unavailable: ${err.message}`; }
+  });
+  $('lockBtn').addEventListener('click', showGate);
+
+  window.addEventListener('unhandledrejection', e => toast(`That did not save: ${e.reason?.message || e.reason}`, 'bad'));
+  async function start() {
+    try { DB = (await Store.load()) || (() => { const { sales_history, ...core } = emptyDb(); return core; })(); }
+    catch (e) { DB = null; $('gateErr').textContent = `Local storage is unavailable: ${e.message}`; }
+    showGate(); Host.start();
+    Store.onChange(async () => {
+      try { const fresh = await Store.load(); if (!fresh) return; DB = fresh; Host.broadcast(); if (unlocked) { SALES = await Store.allSales(); if (!document.querySelector('dialog[open]')) renderAll(); } } catch { /* keep the last good copy */ }
+    });
+    registerOffline().then(ok => { $('offlineLamp').hidden = !ok; });
+  }
+  start();
+})();
+</script>
+</body>
+</html>
