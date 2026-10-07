@@ -10,7 +10,7 @@ Registers run the **Checkout Terminal**, a separate app. This download does not 
 |---|---|
 | `owner_manager.html` | The manager |
 | `sw.js`, `manager.webmanifest`, `icon-*.png` | Make it installable and available offline |
-| `inventory_db.sample.json` | Practice data: 14 items, 4 promotions, 3 customers, 2 device profiles |
+| `inventory_db.sample.json` | Practice data: 15 items (one sold by weight), 4 promotions, 3 customers, 2 device profiles |
 
 ## Run it
 
@@ -38,6 +38,7 @@ Only the barcode is required. Every other field can be left empty, item by item:
 |---|---|
 | Name | The barcode is shown instead ("Item 0700") |
 | Regular price | The cashier types the price each time the item is scanned, for example for loose produce |
+| Sold | The item is sold each. Choose "by weight" to price it per lb, kg or oz: the register then weighs it, and stock counts down by weight |
 | Sale price | The item is not on sale |
 | In stock | The item is not counted: no low-stock alerts, and sales do not change it |
 | Category | No category; category promotions do not reach it |
@@ -69,7 +70,8 @@ second or so.
 2. Drop that file on the register's screen and enter the PIN there.
 
 To bring a register's sales, stock counts and balances back: on the register press Alt+Shift+E to export
-its file, then here press **Import a sync file** and choose **Pull register activity**. Do this before
+its file, then here press **Import a sync file** and choose **Pull register activity** (stock, balances,
+new accounts and sales). Do this before
 your next export, or the register's numbers are overwritten by older ones. The file method suits one
 register; use Wi-Fi sync for more.
 
@@ -88,19 +90,34 @@ no setup. Put the two app folders side by side and start the server in the folde
 - A promotion whose code is an item's own barcode applies whenever that item is sold.
 - **Clearance** is always on, is a percentage off the regular price, and coupons skip clearance items.
 
-## Customer credit
+## Customer accounts
 
-Accounts are identified by phone number. A charge sets the due date to that day plus your payment window,
-unless the customer already owes. An account past due with a balance freezes by itself and unfreezes when
-the balance is paid, here or at a register.
+Accounts are identified by phone number. Under **Settings, Customer accounts** you decide:
 
-## Card devices
+- **Account number start.** Digits typed in for the cashier whenever an account number is asked for, such
+  as your area code.
+- **Registers can open accounts.** When on, a cashier can open an account at the register. When off, only
+  this manager can.
+- **What an account asks for.** The phone number is always asked. Full name, first name, last name,
+  address, other phone and store card number can each be not asked, optional or required. You can rename
+  any of them and add your own fields. Answers to a field you later switch off are kept.
 
-Under **Payment devices**, add a profile for each terminal: a label, the provider, whether it connects by
-LAN address or serial port, and the address. One profile is the default; each register asks once which
-profile it uses. The registers send a generic message and wait for "approved"; terminals from Clover,
-Verifone, Ingenico, PAX and Square need a small bridge program to translate. The panel on that screen and
-the Checkout Terminal's README show the exact message.
+Registers ask for an account only when a customer pays with **Charge to Account**. A charge sets the due
+date to that day plus your payment window, unless the customer already owes. An account past due with a
+balance freezes by itself and unfreezes when the balance is paid, here or at a register.
+
+Do not keep bank card numbers in account fields: account details are saved, exported and synced as plain
+text.
+
+## Devices
+
+Each register sets up its own card terminal, scale, scanner and receipt printer from its **Devices**
+button; nothing about them is set here. The one exception is **Payment devices**: a networked or serial
+card device you save there is offered to every register as a ready-made choice. See the Checkout
+Terminal's README for which scales, scanners and card terminals connect, and how.
+
+For labels printed by a deli or meat scale (a 12-digit barcode starting with 2 that carries the price),
+save the item under the 5-digit item number the scale prints.
 
 ## Things to know
 
@@ -113,5 +130,5 @@ the Checkout Terminal's README show the exact message.
   for a moment when a page opens or reconnects. Two free public services make the introduction
   (`ntfy.sh` and `api.ipify.org`); prices, sales and customer details never pass through them. This was
   tested with a stand-in for those services on one machine, so try it on your own network first.
-- After replacing these files with a newer version, raise the version number in `sw.js` (for example `v2` to `v3`) so browsers pick up the
+- After replacing these files with a newer version, raise the version number in `sw.js` (for example `v3` to `v4`). Update both apps together so browsers pick up the
   update.

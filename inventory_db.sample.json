@@ -1,36 +1,78 @@
 {
   "inventory": {
-    "0001": { "name": "Bananas, 1 lb", "price": 0.79, "sale_price": 0.00, "stock": 140, "category": "Produce", "taxable": false },
+    "0001": { "name": "Bananas, 1 lb", "price": 0.79, "sale_price": 0.0, "stock": 140, "category": "Produce", "taxable": false },
     "0002": { "name": "Gala apples, 1 lb", "price": 1.99, "sale_price": 1.49, "stock": 86, "category": "Produce", "taxable": false },
-    "0003": { "name": "Yellow onions, 3 lb bag", "price": 3.29, "sale_price": 0.00, "stock": 34, "category": "Produce", "taxable": false },
-    "0101": { "name": "Whole milk, 1 gal", "price": 4.19, "sale_price": 0.00, "stock": 22, "category": "Dairy", "taxable": false },
+    "0003": { "name": "Yellow onions, 3 lb bag", "price": 3.29, "sale_price": 0.0, "stock": 34, "category": "Produce", "taxable": false },
+    "4011": { "name": "Bananas, loose", "price": 0.69, "sale_price": 0.0, "stock": 60, "category": "Produce", "taxable": false, "by_weight": "lb" },
+    "0101": { "name": "Whole milk, 1 gal", "price": 4.19, "sale_price": 0.0, "stock": 22, "category": "Dairy", "taxable": false },
     "0102": { "name": "Large eggs, dozen", "price": 3.89, "sale_price": 3.29, "stock": 4, "category": "Dairy", "taxable": false },
-    "0103": { "name": "Salted butter, 1 lb", "price": 5.49, "sale_price": 0.00, "stock": 18, "category": "Dairy", "taxable": false },
-    "0201": { "name": "Sandwich bread", "price": 3.49, "sale_price": 0.00, "stock": 15, "category": "Bakery", "taxable": false },
-    "0202": { "name": "Butter croissants, 4 pack", "price": 5.99, "sale_price": 0.00, "stock": 3, "category": "Bakery", "taxable": false },
-    "0301": { "name": "Long grain rice, 2 lb", "price": 3.79, "sale_price": 0.00, "stock": 41, "category": "Pantry", "taxable": false },
-    "0302": { "name": "Canned tomatoes, 28 oz", "price": 2.39, "sale_price": 0.00, "stock": 60, "category": "Pantry", "taxable": false },
-    "0303": { "name": "Pumpkin spice granola", "price": 6.49, "sale_price": 0.00, "stock": 9, "category": "Pantry", "taxable": false },
-    "0401": { "name": "Dish soap, 20 oz", "price": 3.99, "sale_price": 0.00, "stock": 27, "category": "Household", "taxable": true },
+    "0103": { "name": "Salted butter, 1 lb", "price": 5.49, "sale_price": 0.0, "stock": 18, "category": "Dairy", "taxable": false },
+    "0201": { "name": "Sandwich bread", "price": 3.49, "sale_price": 0.0, "stock": 15, "category": "Bakery", "taxable": false },
+    "0202": { "name": "Butter croissants, 4 pack", "price": 5.99, "sale_price": 0.0, "stock": 3, "category": "Bakery", "taxable": false },
+    "0301": { "name": "Long grain rice, 2 lb", "price": 3.79, "sale_price": 0.0, "stock": 41, "category": "Pantry", "taxable": false },
+    "0302": { "name": "Canned tomatoes, 28 oz", "price": 2.39, "sale_price": 0.0, "stock": 60, "category": "Pantry", "taxable": false },
+    "0303": { "name": "Pumpkin spice granola", "price": 6.49, "sale_price": 0.0, "stock": 9, "category": "Pantry", "taxable": false },
+    "0401": { "name": "Dish soap, 20 oz", "price": 3.99, "sale_price": 0.0, "stock": 27, "category": "Household", "taxable": true },
     "0402": { "name": "Paper towels, 6 rolls", "price": 9.99, "sale_price": 8.49, "stock": 0, "category": "Household", "taxable": true },
-    "0403": { "name": "Trash bags, 30 count", "price": 7.49, "sale_price": 0.00, "stock": 12, "category": "Household", "taxable": true }
+    "0403": { "name": "Trash bags, 30 count", "price": 7.49, "sale_price": 0.0, "stock": 12, "category": "Household", "taxable": true }
   },
   "promotions": {
-    "SAVE10": { "type": "percentage", "value": 10, "applies_to": "all" },
-    "BREAD1": { "type": "fixed", "value": 1, "applies_to": "Bakery" },
-    "5OFF": { "type": "fixed", "value": 5, "applies_to": "all" },
-    "CLEAR30": { "type": "clearance", "value": 30, "applies_to": "0303" }
+    "SAVE10": {
+      "type": "percentage",
+      "value": 10,
+      "applies_to": "all"
+    },
+    "BREAD1": {
+      "type": "fixed",
+      "value": 1,
+      "applies_to": "Bakery"
+    },
+    "5OFF": {
+      "type": "fixed",
+      "value": 5,
+      "applies_to": "all"
+    },
+    "CLEAR30": {
+      "type": "clearance",
+      "value": 30,
+      "applies_to": "0303"
+    }
   },
   "customers": {
-    "5550101": { "name": "Maria Ortiz", "balance_due": 0.00, "due_date": null, "status": "active" },
-    "5550102": { "name": "Devon Park", "balance_due": 18.40, "due_date": "2027-01-15", "status": "active" },
-    "5550103": { "name": "Sam Whitfield", "balance_due": 42.75, "due_date": "2026-09-20", "status": "active" }
+    "5550101": {
+      "name": "Maria Ortiz",
+      "balance_due": 0.0,
+      "due_date": null,
+      "status": "active"
+    },
+    "5550102": {
+      "name": "Devon Park",
+      "balance_due": 18.4,
+      "due_date": "2027-01-15",
+      "status": "active"
+    },
+    "5550103": {
+      "name": "Sam Whitfield",
+      "balance_due": 42.75,
+      "due_date": "2026-09-20",
+      "status": "active"
+    }
   },
   "payment_devices": {
     "ACTIVE_PROFILE_ID": "practice",
     "profiles": {
-      "practice": { "provider_name": "Practice simulator", "connection_type": "LAN_IP", "endpoint_address": "sim://approve", "label": "Practice device (no real charge)" },
-      "counter1": { "provider_name": "Clover Link", "connection_type": "LAN_IP", "endpoint_address": "110.12.0.45:8080/v2/sale", "label": "Front counter Clover" }
+      "practice": {
+        "provider_name": "Practice simulator",
+        "connection_type": "LAN_IP",
+        "endpoint_address": "sim://approve",
+        "label": "Practice device (no real charge)"
+      },
+      "counter1": {
+        "provider_name": "Clover Link",
+        "connection_type": "LAN_IP",
+        "endpoint_address": "110.12.0.45:8080/v2/sale",
+        "label": "Front counter Clover"
+      }
     }
   },
   "settings": {
@@ -39,7 +81,8 @@
     "credit_allowed_globally": true,
     "global_credit_duration_days": 7,
     "printing_enabled": true,
-    "tax_rate_percent": 8
+    "tax_rate_percent": 8,
+    "account_prefix": ""
   },
   "sales_history": []
 }

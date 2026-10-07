@@ -142,6 +142,9 @@ dialog.dlg::backdrop { background: rgba(20, 28, 31, .6); }
 .panel-title { font-size: 1.2rem; margin: 28px 0 10px; }
 .hostcode { font: 700 1.3rem var(--display); letter-spacing: .08em; }
 .gate .waitnote { color: var(--tag); margin: 14px 0 0; }
+.fieldlist { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.fieldrow { display: grid; grid-template-columns: minmax(0, 1fr) 130px 70px; gap: 8px; align-items: center; }
+.fieldrow input { width: 100%; }
 .toasts { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: grid; gap: 8px; max-width: min(460px, calc(100vw - 48px)); }
 .toast { padding: 12px 16px; border-radius: 6px; background: var(--slate); color: var(--chalk); font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); border-left: 6px solid #a9b8ba; }
 .toast.good { border-left-color: #5fd487; }
@@ -307,10 +310,37 @@ const Core = (() => {
 
   /* ---------- schema ---------- */
   const PROMO_TYPES = ['percentage', 'fixed', 'clearance'];
+  /* Items sold by weight: the price is per one of these units. */
+  const GRAMS = { lb: 453.59237, kg: 1000, oz: 28.349523125, g: 1 };
+  const round3 = n => Math.round(n * 1000) / 1000;
+  const convertWeight = (value, from, to) => round3(value * GRAMS[from] / GRAMS[to]);
+  /* What the owner asks for when an account is opened. The phone number is the account number and is always asked.
+     use: 'off' (not asked), 'optional', or 'required'. Fields the owner adds get ids starting with "x_". */
+  const ACCOUNT_PRESETS = [['name', 'Full name', 'required'], ['first_name', 'First name', 'off'], ['last_name', 'Last name', 'off'],
+    ['address', 'Address', 'required'], ['phone2', 'Other phone', 'off'], ['card', 'Store card number', 'off']];
+  const USES = ['off', 'optional', 'required'];
+  function accountFields(saved) {
+    const list = Array.isArray(saved) ? saved.filter(f => f && typeof f === 'object') : [], byId = new Map(list.map(f => [String(f.id), f]));
+    const label = (f, dflt) => String(f?.label ?? '').trim().slice(0, 40) || dflt;
+    const out = ACCOUNT_PRESETS.map(([id, text, use]) => ({ id, label: label(byId.get(id), text), use: USES.includes(byId.get(id)?.use) ? byId.get(id).use : use }));
+    for (const f of list) {
+      const id = String(f.id);
+      if (/^x_[a-z0-9]{1,12}$/.test(id) && label(f, '') && !out.some(o => o.id === id) && out.length < 18) out.push({ id, label: label(f, ''), use: USES.includes(f.use) ? f.use : 'optional' });
+    }
+    return out;
+  }
+  const cleanFields = raw => {
+    const out = {};
+    for (const [k, v] of Object.entries(obj(raw))) { const text = String(v ?? '').trim().slice(0, 200); if (/^[a-z0-9_]{1,16}$/.test(k) && text) out[k] = text; }
+    return out;
+  };
+  /* The name shown for an account: the full name, or first and last, or the account number when no name is kept. */
+  const accountName = (phone, fields) => fields.name || [fields.first_name, fields.last_name].filter(Boolean).join(' ') || `Account ${phone}`;
   const emptyDb = () => ({
     inventory: {}, promotions: {}, customers: {},
     payment_devices: { ACTIVE_PROFILE_ID: '', profiles: {} },
-    settings: { pin_hash: '', receipt_header: '', credit_allowed_globally: true, global_credit_duration_days: 7, printing_enabled: true, tax_rate_percent: 0, last_modified: '' },
+    settings: { pin_hash: '', receipt_header: '', credit_allowed_globally: true, global_credit_duration_days: 7, printing_enabled: true, tax_rate_percent: 0, last_modified: '',
+      account_prefix: '', registers_open_accounts: true, account_fields: accountFields() },
     sales_history: []
   });
   const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
@@ -330,7 +360,7 @@ const Core = (() => {
       const key = safeKey(code);
       if (!key || !it || typeof it !== 'object') { skipped.push(`inventory "${code}"`); continue; }
       /* Only the barcode is required. No name: the barcode is shown. No price: the cashier types it. No stock: not counted. */
-      db.inventory[key] = { name: String(it.name ?? '').trim() || `Item ${key}`, price: blank(it.price) ? null : money(it.price), sale_price: money(it.sale_price), stock: blank(it.stock) ? null : Math.trunc(Number(it.stock)) || 0, category: String(it.category ?? '').trim(), taxable: bool(it.taxable, false) };
+      db.inventory[key] = { name: String(it.name ?? '').trim() || `Item ${key}`, price: blank(it.price) ? null : money(it.price), sale_price: money(it.sale_price), stock: blank(it.stock) ? null : (has(GRAMS, it.by_weight) ? round3(Number(it.stock)) : Math.trunc(Number(it.stock))) || 0, category: String(it.category ?? '').trim(), taxable: bool(it.taxable, false), by_weight: has(GRAMS, it.by_weight) ? it.by_weight : '' };
     }
     for (const [code, p] of Object.entries(obj(raw.promotions))) {
       const key = safeKey(code), type = String(obj(p).type ?? '').toLowerCase(), value = Number(obj(p).value);
@@ -338,9 +368,10 @@ const Core = (() => {
       db.promotions[key] = { type, value, applies_to: String(p.applies_to ?? 'all').trim() || 'all' };
     }
     for (const [phone, c] of Object.entries(obj(raw.customers))) {
-      const key = phoneKey(phone), name = String(obj(c).name ?? '').trim();
-      if (key.length < 4 || !name) { skipped.push(`customer "${phone}"`); continue; }
-      db.customers[key] = { name, balance_due: money(c.balance_due), due_date: isDate(c.due_date) ? c.due_date : null, status: c.status === 'frozen' ? 'frozen' : 'active' };
+      const key = phoneKey(phone), old = String(obj(c).name ?? '').trim(), fields = cleanFields(obj(c).fields);
+      if (key.length < 4 || key.length > 15 || !c || typeof c !== 'object') { skipped.push(`customer "${phone}"`); continue; }
+      if (old && old !== `Account ${key}` && !fields.name && !fields.first_name && !fields.last_name) fields.name = old.slice(0, 200);   // files from before account fields
+      db.customers[key] = { name: accountName(key, fields), fields, balance_due: money(c.balance_due), due_date: isDate(c.due_date) ? c.due_date : null, status: c.status === 'frozen' ? 'frozen' : 'active' };
     }
     const pd = obj(raw.payment_devices);
     for (const [id, p] of Object.entries(obj(pd.profiles))) {
@@ -361,10 +392,29 @@ const Core = (() => {
       global_credit_duration_days: days >= 0 ? days : 7,
       printing_enabled: bool(s.printing_enabled, true),
       tax_rate_percent: tax >= 0 && tax <= 100 ? tax : 0,
-      last_modified: typeof s.last_modified === 'string' && !Number.isNaN(Date.parse(s.last_modified)) ? s.last_modified : ''
+      last_modified: typeof s.last_modified === 'string' && !Number.isNaN(Date.parse(s.last_modified)) ? s.last_modified : '',
+      account_prefix: phoneKey(s.account_prefix).slice(0, 10),
+      registers_open_accounts: bool(s.registers_open_accounts, true),
+      account_fields: accountFields(s.account_fields)
     };
     db.sales_history = (Array.isArray(raw.sales_history) ? raw.sales_history : []).filter(r => r && typeof r === 'object' && r.id);
     return { db, skipped };
+  }
+
+  /* Data saved by an earlier version of the apps gains the newer fields the first time it is read. */
+  function upgrade(core) {
+    if (!core || typeof core !== 'object') return core;
+    const s = core.settings ||= {};
+    if (!Array.isArray(s.account_fields) || s.account_fields.length < ACCOUNT_PRESETS.length) s.account_fields = accountFields(s.account_fields);
+    if (typeof s.account_prefix !== 'string') s.account_prefix = '';
+    if (typeof s.registers_open_accounts !== 'boolean') s.registers_open_accounts = true;
+    for (const it of Object.values(core.inventory || {})) if (typeof it.by_weight !== 'string') it.by_weight = '';
+    for (const [key, c] of Object.entries(core.customers || {})) {
+      if (c.fields && typeof c.fields === 'object') continue;
+      c.fields = c.name && c.name !== `Account ${key}` ? { name: String(c.name).slice(0, 200) } : {};
+      c.name = accountName(key, c.fields);
+    }
+    return core;
   }
 
   const isOverdue = (c, today = isoDate()) => toCents(c.balance_due) > 0 && !!c.due_date && today > c.due_date;
@@ -376,6 +426,11 @@ const Core = (() => {
   /* What one sale or account payment does to stock and balances. The register runs it at the moment of sale, the host
      runs it once when a register reports the sale, and a register replays it for sales the host has not confirmed. */
   function applyRecord(core, rec) {
+    if (rec.type === 'account_open') {                    // an account opened at a register: created once, never overwritten
+      const key = phoneKey(rec.customer), fields = cleanFields(rec.fields);
+      if (key.length >= 4 && key.length <= 15 && !has(core.customers, key)) core.customers[key] = { name: accountName(key, fields), fields, balance_due: 0, due_date: null, status: 'active' };
+      return;
+    }
     const acct = rec.customer && has(core.customers, rec.customer) ? core.customers[rec.customer] : null;
     if (rec.type === 'account_payment') {
       if (!acct) return;
@@ -384,7 +439,12 @@ const Core = (() => {
       if (left === 0) { acct.due_date = null; acct.status = 'active'; }
       return;
     }
-    for (const it of rec.items || []) if (has(core.inventory, it.barcode) && core.inventory[it.barcode].stock !== null) core.inventory[it.barcode].stock -= Math.trunc(Number(it.qty)) || 0;
+    for (const it of rec.items || []) {
+      const item = has(core.inventory, it.barcode) ? core.inventory[it.barcode] : null;
+      if (!item || item.stock === null) continue;
+      const count = Math.trunc(Number(it.qty)) || 0;
+      item.stock = it.weight > 0 ? round3(item.stock - Number(it.weight) * count) : item.stock - count;      // weighed items count down by weight
+    }
     if (rec.payment?.method === 'account' && acct) {
       const before = toCents(acct.balance_due);
       acct.balance_due = toMoney(before + toCents(rec.total));
@@ -422,7 +482,7 @@ const Core = (() => {
         const kv = tx.objectStore('kv'), get = kv.get('core');
         get.onsuccess = () => {
           try {
-            const c = get.result || stripSales(emptyDb());
+            const c = upgrade(get.result) || stripSales(emptyDb());
             change(c); kv.put(c, 'core');
             for (const r of records) tx.objectStore('sales').put(r);
             done(c);
@@ -433,7 +493,7 @@ const Core = (() => {
       return core;
     }
     async function load() {
-      return run(['kv'], 'readonly', (tx, done) => { const g = tx.objectStore('kv').get('core'); g.onsuccess = () => done(g.result || null); });
+      return run(['kv'], 'readonly', (tx, done) => { const g = tx.objectStore('kv').get('core'); g.onsuccess = () => done(upgrade(g.result) || null); });
     }
     async function allSales() {
       const rows = await run(['sales'], 'readonly', (tx, done) => { const g = tx.objectStore('sales').getAll(); g.onsuccess = () => done(g.result); });
@@ -582,7 +642,7 @@ const Core = (() => {
     return { SERVICE, rid: randomHex, proof, publish, subscribe, areaTopic, offer, answer, wire, prettyCode };
   })();
 
-  return { applyRecord, stampOf, stampNow, Link, toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, isDate, sha256, hashPin, verifyPin, tryPin, PROMO_TYPES, emptyDb, normalizeDb, has, safeKey, isOverdue, isFrozen, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline };
+  return { applyRecord, stampOf, stampNow, Link, GRAMS, round3, convertWeight, accountFields, cleanFields, accountName, toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, isDate, sha256, hashPin, verifyPin, tryPin, PROMO_TYPES, emptyDb, normalizeDb, has, safeKey, isOverdue, isFrozen, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline };
 })();
 </script>
 <script>
@@ -723,7 +783,7 @@ const Core = (() => {
   }
 
   function drawOverview() {
-    const today = isoDate(), todays = SALES.filter(s => isoDate(new Date(s.ts)) === today);
+    const today = isoDate(), todays = SALES.filter(s => s.type !== 'account_open' && isoDate(new Date(s.ts)) === today);
     const taken = todays.filter(s => s.payment?.method !== 'account').reduce((t, s) => t + toCents(s.total), 0);
     const charged = todays.filter(s => s.payment?.method === 'account').reduce((t, s) => t + toCents(s.total), 0);
     const custs = Object.entries(DB.customers), owing = custs.filter(([, c]) => toCents(c.balance_due) > 0);
@@ -738,7 +798,7 @@ const Core = (() => {
         stat('Running low', String(low.length), `At or under ${lowAt} in stock`, low.length > 0)),
       h('div', { class: 'cols' },
         h('section', {}, h('h2', { text: 'Restock soon' }), low.length
-          ? h('ul', { class: 'plain-list' }, low.slice(0, 8).map(([, i]) => h('li', {}, h('span', { text: i.name }), h('span', {}, `${i.stock} left `, stockMark(i.stock)))))
+          ? h('ul', { class: 'plain-list' }, low.slice(0, 8).map(([, i]) => h('li', {}, h('span', { text: i.name }), h('span', {}, `${i.stock}${i.by_weight ? ' ' + i.by_weight : ''} left `, stockMark(i.stock)))))
           : h('p', { class: 'empty', text: Object.keys(DB.inventory).length ? 'Every item is above the low-stock line.' : 'No items yet. Add them under Inventory, or import a sync file.' })),
         h('section', {}, h('h2', { text: 'Getting changes to the register' }), h('ol', { class: 'steps' },
           h('li', { text: 'Press Compile & Export Sync File and enter your PIN. The browser saves inventory_db.json.' }),
@@ -765,8 +825,8 @@ const Core = (() => {
         { head: sortBtn('Barcode', 'code'), cls: 'code', cell: r => r.code },
         { head: sortBtn('Item', 'name'), cell: r => r.name },
         { head: sortBtn('Category', 'category'), cell: r => r.category || '\u2013' },
-        { head: sortBtn('Price', 'price'), cls: 'num', cell: r => r.price === null ? 'Typed at the register' : r.sale_price > 0 && r.sale_price < r.price ? [h('s', { class: 'was', text: fmt(toCents(r.price)) }), fmt(toCents(r.sale_price))] : fmt(toCents(r.price)) },
-        { head: sortBtn('In stock', 'stock'), cls: 'num', cell: r => r.stock === null ? 'Not counted' : [stockMark(r.stock), ' ', String(r.stock)] },
+        { head: sortBtn('Price', 'price'), cls: 'num', cell: r => r.price === null ? 'Typed at the register' : [r.sale_price > 0 && r.sale_price < r.price ? [h('s', { class: 'was', text: fmt(toCents(r.price)) }), fmt(toCents(r.sale_price))] : fmt(toCents(r.price)), r.by_weight ? ` per ${r.by_weight}` : ''] },
+        { head: sortBtn('In stock', 'stock'), cls: 'num', cell: r => r.stock === null ? 'Not counted' : [stockMark(r.stock), ' ', String(r.stock), r.by_weight ? ' ' + r.by_weight : ''] },
         { label: 'Taxed', cell: r => r.taxable ? 'Yes' : 'No' },
         { label: '', cls: 'acts', cell: r => [link('Edit', () => editItem(r.code)), link('Delete', async () => { if (await confirmDelete(r.name)) save(c => { delete c.inventory[r.code]; }); }, true)] }
       ], rows, Object.keys(DB.inventory).length ? 'No items match those filters.' : 'No items yet. Press Add item to enter the first one.'));
@@ -791,9 +851,10 @@ const Core = (() => {
         { name: 'code', label: 'Barcode', value: code || '', readonly: !!it, hint: it ? null : 'Scan or type it. This is what the register looks up.' },
         { name: 'name', label: 'Item name', value: it?.name, hint: 'Leave empty to show the barcode instead.' },
         { name: 'category', label: 'Category', value: it?.category, list: categories() },
-        { name: 'price', label: 'Regular price ($)', type: 'money', min: '0', value: it && it.price !== null ? it.price.toFixed(2) : '', hint: 'Leave empty and the cashier types the price each time, for example for loose produce.' },
+        { name: 'by_weight', label: 'Sold', type: 'select', value: it?.by_weight || '', options: [['', 'Each (by the piece or pack)'], ['lb', 'By weight, priced per pound (lb)'], ['kg', 'By weight, priced per kilogram (kg)'], ['oz', 'By weight, priced per ounce (oz)']], hint: 'A by-weight item is weighed at the register. Its prices and stock below are per that unit.' },
+        { name: 'price', label: 'Regular price ($)', type: 'money', min: '0', value: it && it.price !== null ? it.price.toFixed(2) : '', hint: 'Leave empty and the cashier types the price each time.' },
         { name: 'sale_price', label: 'Sale price ($)', type: 'money', min: '0', value: it?.sale_price ? it.sale_price.toFixed(2) : '', hint: 'Leave empty when the item is not on sale.' },
-        { name: 'stock', label: 'In stock', type: 'int', value: it ? (it.stock ?? '') : '', hint: 'Leave empty if you do not count this item.' },
+        { name: 'stock', label: 'In stock', type: 'number', value: it ? (it.stock ?? '') : '', hint: 'Leave empty if you do not count this item.' },
         { name: 'taxable', label: 'Sales tax applies to this item', type: 'checkbox', value: it?.taxable }
       ],
       onSubmit: async v => {
@@ -803,8 +864,8 @@ const Core = (() => {
         if (v.price !== null && !(v.price >= 0)) return 'The regular price cannot be negative.';
         if (v.sale_price && v.price === null) return 'A sale price needs a regular price.';
         if (v.sale_price && (v.sale_price < 0 || v.sale_price >= v.price)) return 'The sale price must be lower than the regular price.';
-        if (v.stock !== null && !Number.isInteger(v.stock)) return 'Stock must be a whole number, or empty.';
-        await save(c => { c.inventory[key] = { name: v.name || `Item ${key}`, price: v.price === null ? null : toMoney(toCents(v.price)), sale_price: toMoney(toCents(v.sale_price || 0)), stock: v.stock, category: v.category, taxable: v.taxable }; });
+        if (v.stock !== null && !v.by_weight && !Number.isInteger(v.stock)) return 'Stock must be a whole number, or empty.';
+        await save(c => { c.inventory[key] = { name: v.name || `Item ${key}`, price: v.price === null ? null : toMoney(toCents(v.price)), sale_price: toMoney(toCents(v.sale_price || 0)), stock: v.stock === null ? null : v.by_weight ? Core.round3(v.stock) : v.stock, category: v.category, taxable: v.taxable, by_weight: v.by_weight }; });
       }
     });
   }
@@ -814,11 +875,12 @@ const Core = (() => {
     function fill() {
       const q = s.q.toLowerCase(), digits = phoneKey(s.q);
       const rows = Object.entries(DB.customers).map(([phone, c]) => ({ phone, ...c }))
-        .filter(r => (!q || r.name.toLowerCase().includes(q) || (digits && r.phone.includes(digits))) && (s.show === 'all' || (s.show === 'owing' && r.balance_due > 0) || (s.show === 'frozen' && (isOverdue(r) || r.status === 'frozen'))))
+        .filter(r => (!q || r.name.toLowerCase().includes(q) || Object.values(r.fields).some(v => v.toLowerCase().includes(q)) || (digits && r.phone.includes(digits))) && (s.show === 'all' || (s.show === 'owing' && r.balance_due > 0) || (s.show === 'frozen' && (isOverdue(r) || r.status === 'frozen'))))
         .sort((a, b) => b.balance_due - a.balance_due || a.name.localeCompare(b.name));
       host.replaceChildren(table([
         { label: 'Phone (account no.)', cls: 'code', cell: r => r.phone },
         { label: 'Name', cell: r => r.name },
+        ...detailFields().map(f => ({ label: f.label, cell: r => r.fields[f.id] || '\u2013' })),
         { label: 'Balance due', cls: 'num', cell: r => fmt(toCents(r.balance_due)) },
         { label: 'Due date', cell: r => r.due_date || '\u2013' },
         { label: 'Status', cell: custMark },
@@ -831,20 +893,20 @@ const Core = (() => {
     }
     fill();
     return [
-      head('Customers', 'Each account is identified by its phone number. Past-due accounts freeze on their own until the balance is paid.', h('button', { type: 'button', class: 'btn primary', text: 'Add customer', onclick: () => editCustomer(null) })),
+      head('Customers', 'Each account is identified by its phone number. Registers ask for it only when a customer pays on account. Past-due accounts freeze on their own until the balance is paid.', h('button', { type: 'button', class: 'btn primary', text: 'Add customer', onclick: () => editCustomer(null) })),
       h('div', { class: 'tools' },
-        h('input', { id: 'custSearch', type: 'search', placeholder: 'Search phone number or name', 'aria-label': 'Search customers', value: s.q, oninput: e => { s.q = e.target.value; fill(); } }),
+        h('input', { id: 'custSearch', type: 'search', placeholder: 'Search phone number, name or details', 'aria-label': 'Search customers', value: s.q, oninput: e => { s.q = e.target.value; fill(); } }),
         h('select', { 'aria-label': 'Show', onchange: e => { s.show = e.target.value; fill(); } }, [['all', 'All accounts'], ['owing', 'With a balance'], ['frozen', 'Frozen']].map(([v, l]) => h('option', { value: v, text: l, selected: v === s.show })))),
       host
     ];
   }
   function editCustomer(phone) {
-    const c = phone ? DB.customers[phone] : null;
+    const c = phone ? DB.customers[phone] : null, asked = DB.settings.account_fields.filter(f => f.use !== 'off');
     openForm({
       title: c ? `Edit ${c.name}` : 'Add a customer account',
       fields: [
-        { name: 'phone', label: 'Phone number (account number)', value: phone || '', readonly: !!c, inputmode: 'tel' },
-        { name: 'name', label: 'Name', value: c?.name },
+        { name: 'phone', label: 'Phone number (account number)', value: phone || DB.settings.account_prefix, readonly: !!c, inputmode: 'tel' },
+        ...asked.map(f => ({ name: 'f_' + f.id, label: f.label + (f.use === 'required' ? '' : ' (optional)'), value: c?.fields[f.id] || '', maxlength: '200' })),
         { name: 'balance_due', label: 'Balance due ($)', type: 'money', min: '0', value: c ? c.balance_due.toFixed(2) : '0.00' },
         { name: 'due_date', label: 'Due date', type: 'date', value: c?.due_date || '', hint: `Leave empty and a balance gets ${DB.settings.global_credit_duration_days} days from today.` },
         { name: 'status', label: 'Status', type: 'select', value: c?.status || 'active', options: [['active', 'Active'], ['frozen', 'Frozen (no purchases on this account)']] }
@@ -853,11 +915,13 @@ const Core = (() => {
         const key = c ? phone : phoneKey(v.phone);
         if (key.length < 4 || key.length > 15) return 'Enter the phone number, digits only (4 to 15 digits).';
         if (!c && has(DB.customers, key)) return `${key} already belongs to ${DB.customers[key].name}.`;
-        if (!v.name) return 'Enter the customer\u2019s name.';
+        const missing = asked.find(f => f.use === 'required' && !v['f_' + f.id]);
+        if (missing) return `Enter the ${missing.label.toLowerCase()}.`;
         if (!(v.balance_due >= 0)) return 'The balance cannot be negative.';
         if (v.due_date && !isDate(v.due_date)) return 'Pick a valid due date.';
         const owes = toCents(v.balance_due) > 0;
-        await save(core => { core.customers[key] = { name: v.name, balance_due: toMoney(toCents(v.balance_due)), due_date: owes ? (v.due_date || addDays(isoDate(), core.settings.global_credit_duration_days)) : null, status: v.status }; });
+        const fields = Core.cleanFields({ ...(c?.fields || {}), ...Object.fromEntries(asked.map(f => [f.id, v['f_' + f.id]])) });      // answers to fields now switched off are kept
+        await save(core => { core.customers[key] = { name: Core.accountName(key, fields), fields, balance_due: toMoney(toCents(v.balance_due)), due_date: owes ? (v.due_date || addDays(isoDate(), core.settings.global_credit_duration_days)) : null, status: v.status }; });
       }
     });
   }
@@ -925,7 +989,7 @@ const Core = (() => {
   function drawDevices() {
     const pd = DB.payment_devices, rows = Object.entries(pd.profiles).map(([id, p]) => ({ id, ...p }));
     return [
-      head('Payment devices', 'Register each card terminal here. A register asks once which of these it should push card totals to.', h('button', { type: 'button', class: 'btn primary', text: 'Add device profile', onclick: () => editDevice(null) })),
+      head('Payment devices', 'Each register sets up its own card terminal, scale, scanner and printer from its Devices button. A card device you save here is offered to every register as a ready-made choice.', h('button', { type: 'button', class: 'btn primary', text: 'Add device profile', onclick: () => editDevice(null) })),
       table([
         { label: 'Label', cell: r => [r.label, r.id === pd.ACTIVE_PROFILE_ID ? [' ', h('span', { class: 'tagmark', text: 'Default push target' })] : null] },
         { label: 'Provider', cell: r => r.provider_name || '\u2013' },
@@ -935,7 +999,7 @@ const Core = (() => {
           r.id === pd.ACTIVE_PROFILE_ID ? null : link('Make default', () => save(c => { c.payment_devices.ACTIVE_PROFILE_ID = r.id; })),
           link('Edit', () => editDevice(r.id)),
           link('Delete', async () => { if (await confirmDelete(r.label, 'Registers mapped to this device will ask which device to use next time.')) save(c => { delete c.payment_devices.profiles[r.id]; if (c.payment_devices.ACTIVE_PROFILE_ID === r.id) c.payment_devices.ACTIVE_PROFILE_ID = Object.keys(c.payment_devices.profiles)[0] || ''; }); }, true)] }
-      ], rows, 'No card devices yet. Until one is added, cashiers use Manual Standalone Card Device Capture.'),
+      ], rows, 'No saved card devices. Registers can still set up their own, or key card amounts on the terminal.'),
       h('details', { class: 'note' }, h('summary', { text: 'What the register sends to a device' }),
         h('p', { text: 'For a LAN address the register sends an HTTP POST (or a WebSocket message for ws:// addresses); for a serial port it writes one line. The body is always this JSON:' }),
         h('pre', { text: '{ "type": "sale", "amount": "24.18", "amount_cents": 2418,\n  "currency": "USD", "reference": "SALE-ID", "station": "REG-AB12" }' }),
@@ -983,8 +1047,30 @@ const Core = (() => {
         row('Sales tax rate', 'Charged on items marked as taxed.', h('label', { style: 'display:flex;align-items:center;gap:8px' }, num('setTax', 'tax_rate_percent', '100', false, 'Sales tax rate in percent'), '%')),
         row('Receipt header', 'Printed at the top of every receipt. The first line is the store name.', h('textarea', { id: 'setHeader', rows: '4', 'aria-label': 'Receipt header', onchange: e => save(c => { c.settings.receipt_header = e.target.value.trim(); }).then(() => toast('Saved.', 'good')) }, s.receipt_header), true),
         row('System PIN', 'Unlocks this manager, exports the sync file, and lets a register load it.', h('button', { type: 'button', class: 'btn', text: 'Change PIN', onclick: changePin }))),
+      ...accountSettings(row),
       ...Host.settings(row)
     ];
+  }
+  /* What a customer account asks for. Phone number is the account number; everything else is the owner's choice. */
+  const detailFields = () => DB.settings.account_fields.filter(f => f.use !== 'off' && !['name', 'first_name', 'last_name'].includes(f.id));
+  function accountSettings(row) {
+    const s = DB.settings, said = () => toast('Saved.', 'good');
+    const setField = (id, change) => save(c => { change(c.settings.account_fields.find(f => f.id === id)); }).then(said);
+    const fieldRow = f => h('li', { class: 'fieldrow' },
+      h('input', { id: 'fl_' + f.id, maxlength: '40', value: f.label, 'aria-label': `Name of the ${f.label} field`, onchange: e => { const label = e.target.value.trim(); if (label) setField(f.id, x => { x.label = label; }); else e.target.value = f.label; } }),
+      h('select', { 'aria-label': `${f.label}: asked or not`, onchange: e => setField(f.id, x => { x.use = e.target.value; }) },
+        [['off', 'Not asked'], ['optional', 'Optional'], ['required', 'Required']].map(([v, l]) => h('option', { value: v, text: l, selected: v === f.use }))),
+      f.id.startsWith('x_') ? link('Remove', async () => { if (await confirmDelete(`the ${f.label} field`, 'Answers already saved on accounts stay in your data but are no longer shown.')) save(c => { c.settings.account_fields = c.settings.account_fields.filter(x => x.id !== f.id); }); }, true) : h('span'));
+    return [h('h2', { class: 'panel-title', text: 'Customer accounts' }), h('div', { class: 'panel' },
+      row('Account number start', 'Digits filled in for the cashier when an account number is asked for, such as your area code. Leave empty for none.',
+        h('input', { id: 'setPrefix', class: 'narrow', style: 'width:110px', inputmode: 'numeric', maxlength: '10', 'aria-label': 'Account number start', value: s.account_prefix, onchange: e => save(c => { c.settings.account_prefix = phoneKey(e.target.value).slice(0, 10); }).then(said) })),
+      row('Registers can open accounts', 'When on, a cashier can open a new account at the register. When off, only this manager can.',
+        h('button', { type: 'button', class: 'toggle', role: 'switch', 'aria-checked': String(s.registers_open_accounts), 'aria-label': 'Registers can open accounts', onclick: () => save(c => { c.settings.registers_open_accounts = !c.settings.registers_open_accounts; }) })),
+      row('What an account asks for', 'The phone number is always asked: it is the account number. Choose the rest, rename any of them, or add your own. The name shown on receipts is the full name, or the first and last name.',
+        h('div', {}, h('ul', { class: 'fieldlist' }, s.account_fields.map(fieldRow)),
+          h('button', { type: 'button', class: 'btn', text: 'Add a field', disabled: s.account_fields.length >= 18,
+            onclick: () => { const id = 'x_' + Math.random().toString(36).slice(2, 8); save(c => { c.settings.account_fields.push({ id, label: 'New field', use: 'optional' }); }).then(() => { $('fl_' + id)?.select(); }); } }),
+          h('p', { style: 'color:var(--mute);margin:10px 0 0', text: 'Do not keep bank card numbers here. Account details are saved, exported and synced as plain text.' })), true))];
   }
   async function changePin() {
     if (!(await askPin('Enter your current PIN'))) return;
@@ -1008,11 +1094,11 @@ const Core = (() => {
       table([
         { label: 'When', cell: r => stamp(r.ts) },
         { label: 'No.', cls: 'code', cell: r => r.id },
-        { label: 'What', cell: r => r.type === 'account_payment' ? 'Payment on account' : `${(r.items || []).reduce((n, i) => n + i.qty, 0)} items` },
+        { label: 'What', cell: r => r.type === 'account_open' ? 'Account opened' : r.type === 'account_payment' ? 'Payment on account' : (n => `${n} item${n === 1 ? '' : 's'}`)((r.items || []).reduce((n, i) => n + i.qty, 0)) },
         { label: 'Paid by', cell: r => (PAY_WORDS[r.payment?.method] || '\u2013') + (r.payment?.test ? ' (test)' : '') },
         { label: 'Customer', cell: r => r.customer_name || '\u2013' },
         { label: 'Register', cell: r => r.station || '\u2013' },
-        { label: 'Total', cls: 'num', cell: r => fmt(toCents(r.total)) }
+        { label: 'Total', cls: 'num', cell: r => r.type === 'account_open' ? '\u2013' : fmt(toCents(r.total)) }
       ], rows, 'No sales recorded yet.')
     ];
   }
@@ -1110,7 +1196,7 @@ const Core = (() => {
       const recs = (Array.isArray(list) ? list : []).filter(r => r && typeof r === 'object' && typeof r.id === 'string' && r.id).slice(0, 20000);
       const unseen = await Store.missing(recs.map(r => r.id)), fresh = recs.filter(r => unseen.has(r.id));
       if (fresh.length) {
-        DB = await Store.update(core => { if (apply) for (const r of fresh) Core.applyRecord(core, r); freezeOverdue(core); }, fresh);
+        DB = await Store.update(core => { for (const r of fresh) if (apply || r.type === 'account_open') Core.applyRecord(core, r); freezeOverdue(core); }, fresh);
         SALES = await Store.allSales();
       }
       if (quiet) return paint();
@@ -1170,7 +1256,7 @@ const Core = (() => {
       mode = await ask({
         title: 'How should this file be imported?',
         body: [`The file holds ${count(next.inventory)} items, ${count(next.customers)} customers and ${next.sales_history.length} sales records.`,
-          h('p', {}, h('strong', { text: 'Pull register activity ' }), 'takes stock counts, customer balances and sales from the file. Your prices, promotions, devices and settings stay as they are here.'),
+          h('p', {}, h('strong', { text: 'Pull register activity ' }), 'takes stock counts, customer balances, new accounts and sales from the file. Your prices, promotions, devices and settings stay as they are here.'),
           h('p', {}, h('strong', { text: 'Replace everything ' }), 'makes this manager a copy of the file. Your PIN stays.')],
         buttons: [{ label: 'Cancel', cancel: true }, { label: 'Replace everything', value: 'replace' }, { label: 'Pull register activity', value: 'pull', kind: 'primary' }]
       });
@@ -1181,7 +1267,10 @@ const Core = (() => {
       if (mode === 'pull') {
         DB = await Store.update(core => {
           for (const [code, it] of Object.entries(next.inventory)) if (has(core.inventory, code) && core.inventory[code].stock !== null && it.stock !== null) core.inventory[code].stock = it.stock;
-          for (const [ph, c] of Object.entries(next.customers)) if (has(core.customers, ph)) Object.assign(core.customers[ph], { balance_due: c.balance_due, due_date: c.due_date, status: c.status });
+          for (const [ph, c] of Object.entries(next.customers)) {
+            if (has(core.customers, ph)) Object.assign(core.customers[ph], { balance_due: c.balance_due, due_date: c.due_date, status: c.status });
+            else core.customers[ph] = c;                                                    // an account opened at the register
+          }
           Core.stampNow(core); freezeOverdue(core);
         }, next.sales_history);
       } else {
