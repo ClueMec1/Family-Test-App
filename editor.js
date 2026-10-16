@@ -1,7 +1,7 @@
 // Project & question configurator with live stage preview.
-import { h, toast, debounce } from '../shared/ui.js';
-import { icon } from '../shared/icons.js';
-import { PHASE, TEAM_PRESETS, OPTION_COLORS, teamsFromNames } from '../shared/protocol.js';
+import { h, toast, debounce } from './ui.js';
+import { icon } from './icons.js';
+import { PHASE, TEAM_PRESETS, OPTION_COLORS, teamsFromNames } from './protocol.js';
 import { getProject, saveProject, newSlide, listMedia, getJoinBase } from './db.js';
 import { topbar } from './dashboard.js';
 import { Stage } from './stage.js';

@@ -1,9 +1,9 @@
 // Dashboard: project grid ("+" card first), Join app address, and the global media library.
-import { h, toast } from '../shared/ui.js';
-import { icon } from '../shared/icons.js';
+import { h, toast } from './ui.js';
+import { icon } from './icons.js';
 import { listProjects, saveProject, deleteProject, newProject, listMedia, addMedia, deleteMedia, getJoinBase, setJoinBase } from './db.js';
 import { audio } from './audio.js';
-import { uid } from '../shared/protocol.js';
+import { uid } from './protocol.js';
 
 export function topbar(...right) {
   const muteBtn = h('button.btn.sm.ghost', { title: 'Mute all sound', onclick: () => { audio.unlock(); audio.toggleMute(); } });

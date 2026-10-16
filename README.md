@@ -6,15 +6,20 @@ The interface is in English. Everything you type (questions, answers, project an
 
 ## Publish on GitHub Pages
 
-1. Create a new repository (for example `clicker-host`) and upload **the contents of this folder** to the root of the repository. `index.html` must sit at the top level.
-2. In the repository, go to **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, branch **main**, folder **/ (root)**, then **Save**.
-3. After a minute the site is live at `https://YOUR-USERNAME.github.io/clicker-host/`.
-4. Publish the Join app the same way in its own repository.
-5. Open the Host app. In **Join app address** at the top of the dashboard, paste the Join app's address (for example `https://YOUR-USERNAME.github.io/clicker-join/`) and press **Save**.
+All files sit side by side in one folder (there are no subfolders), so nothing gets lost when you upload.
 
-The QR codes on screen point to the address you save in step 5.
+1. Unzip `clicker-host.zip` on your computer.
+2. On GitHub, open your repository (for example `clicker-host`) → **Add file → Upload files**.
+3. Open the unzipped folder, select **every file** (Ctrl+A on Windows, Cmd+A on Mac), and drag them all into the GitHub upload box. You should see about 30 files listed. Then press **Commit changes**.
+4. Go to **Settings → Pages**. Under "Build and deployment", choose **Deploy from a branch**, branch **main**, folder **/ (root)**, then **Save**.
+5. Wait a minute, then open `https://YOUR-USERNAME.github.io/clicker-host/`.
 
-**Optional:** to pre-fill the address for anyone who opens your Host app, put it in `js/config.js` (`DEFAULT_JOIN_URL`). Your dashboard setting always takes priority over it.
+If a file is missing, the page shows which files to upload instead of staying blank.
+
+6. Publish the Join app the same way in its own repository.
+7. Open the Host app. In **Join app address** at the top of the dashboard, paste the Join app's address (for example `https://YOUR-USERNAME.github.io/clicker-join/`) and press **Save**. The QR codes on screen point there.
+
+**Optional:** to pre-fill the address for anyone who opens your Host app, put it in `config.js` (`DEFAULT_JOIN_URL`). Your dashboard setting always takes priority over it.
 
 **Custom domain:** in Settings → Pages you can set a domain such as `host.yourdomain.com`. Use a different domain or subdomain for the Join app.
 
@@ -62,8 +67,8 @@ The arrow and PageUp/PageDown keys also work in the display window, so a present
 
 ## Good to know
 - **Connections:** phones connect directly to the host computer using WebRTC. A free public server (PeerJS) only introduces the devices to each other; the answers don't pass through it.
-- **Venue networks:** direct connections work on most Wi-Fi and mobile networks. Some strict corporate networks block them, so test at the venue first. If some phones can't connect, a TURN server can be added in `ICE_SERVERS` in `shared/protocol.js`.
+- **Venue networks:** direct connections work on most Wi-Fi and mobile networks. Some strict corporate networks block them, so test at the venue first. If some phones can't connect, a TURN server can be added in `ICE_SERVERS` in `protocol.js`.
 - **Number of players:** about 150–250 players is a realistic limit for one host computer.
 - **Keep the console open:** don't minimize the console window during the show, because browsers slow down hidden windows. Put the display window on the second screen instead.
-- **Compatibility:** the Host and Join apps share `shared/protocol.js`. If you change one copy, update both.
+- **Compatibility:** the Host and Join apps share `protocol.js`. If you change one copy, update both.
 - **First load needs internet:** the first time, the app downloads PeerJS, the QR library and fonts. After that they are cached.

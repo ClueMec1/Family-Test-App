@@ -1,7 +1,7 @@
 // IndexedDB persistence for the Host PWA.
 // Stores: projects (event projects + slides), media (audio Blobs, global library),
 //         sessions (live show state per project, so a reload resumes the same PIN), settings.
-import { uid } from '../shared/protocol.js';
+import { uid } from './protocol.js';
 import { DEFAULT_JOIN_URL } from './config.js';
 
 const DB_NAME = 'clicker-host';

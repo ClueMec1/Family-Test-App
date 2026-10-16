@@ -6,8 +6,8 @@
   <title>Clicker Show — Display</title>
   <meta name="theme-color" content="#000000">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="shared/base.css">
-  <link rel="stylesheet" href="css/stage.css">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="stage.css">
   <style>
     html, body { background: #000; overflow: hidden; cursor: none; }
     #screen { position: fixed; inset: 0; }
@@ -24,7 +24,7 @@
   <div class="waiting" id="waiting">Waiting for the host console…</div>
   <div class="hint" id="hint">Click for fullscreen · F</div>
   <script type="module">
-    import { Stage } from './js/stage.js';
+    import { Stage } from './stage.js';
     const stage = new Stage(document.getElementById('screen'));
     const bc = new BroadcastChannel('clicker-display');
     const waiting = document.getElementById('waiting');

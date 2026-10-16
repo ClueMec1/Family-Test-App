@@ -1,7 +1,7 @@
 // ShowHub: the authoritative live-show state machine. Lives in the Host console tab.
 // Owns participants, answers, phases, timers and the network hub.
-import { T, PHASE, STALE_MS, OVERLAYS, teamsFromNames, cleanName, uid, randomPin } from '../shared/protocol.js';
-import { openHub } from '../shared/transport.js';
+import { T, PHASE, STALE_MS, OVERLAYS, teamsFromNames, cleanName, uid, randomPin } from './protocol.js';
+import { openHub } from './transport.js';
 import { typingDuration } from './typewriter.js';
 import { audio } from './audio.js';
 

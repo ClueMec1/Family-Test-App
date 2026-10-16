@@ -1,9 +1,9 @@
 // Live show console: runs the ShowHub, renders the stage (preview / fullscreen / second window),
 // and offers operator controls, overlays, participants list, QR codes and the phone remote.
-import { h, toast, debounce, fmtTime } from '../shared/ui.js';
-import { icon } from '../shared/icons.js';
-import { PHASE, PHASE_LABEL } from '../shared/protocol.js';
-import { renderQR } from '../shared/qr.js';
+import { h, toast, debounce, fmtTime } from './ui.js';
+import { icon } from './icons.js';
+import { PHASE, PHASE_LABEL } from './protocol.js';
+import { renderQR } from './qr.js';
 import { getProject, getSession, saveSession, deleteSession, getJoinBase } from './db.js';
 import { ShowHub } from './hub.js';
 import { Stage } from './stage.js';

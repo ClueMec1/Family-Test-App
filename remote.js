@@ -1,8 +1,8 @@
 // Host phone remote: connects to the console hub as role "remote" (secret key from the QR).
-import { h, registerSW, vibrate, fmtTime } from '../shared/ui.js';
-import { icon } from '../shared/icons.js';
-import { T, PHASE, PHASE_LABEL, OPTION_COLORS, isLocalMode } from '../shared/protocol.js';
-import { ClientLink } from '../shared/transport.js';
+import { h, registerSW, vibrate, fmtTime } from './ui.js';
+import { icon } from './icons.js';
+import { T, PHASE, PHASE_LABEL, OPTION_COLORS, isLocalMode } from './protocol.js';
+import { ClientLink } from './transport.js';
 
 registerSW('./sw.js');
 const q = new URLSearchParams(location.search);

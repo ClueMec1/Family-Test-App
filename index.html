@@ -7,14 +7,39 @@
   <meta name="theme-color" content="#0a0a12">
   <meta name="description" content="Host dashboard: projects, media library and a live quiz presentation">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="shared/base.css">
-  <link rel="stylesheet" href="css/host.css">
-  <link rel="stylesheet" href="css/stage.css">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="host.css">
+  <link rel="stylesheet" href="stage.css">
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="app.js"></script>
+
+  <!-- Safety net: if the app hasn't started after a few seconds, explain why instead of a blank page. -->
+  <script>
+    setTimeout(function () {
+      var app = document.getElementById('app');
+      if (!app || app.children.length) return;
+      var files = ["app.js", "audio.js", "base.css", "config.js", "dashboard.js", "db.js", "editor.js", "host.css", "hub.js", "icons.js", "particles.js", "protocol.js", "qr.js", "remote.css", "remote.js", "show.js", "stage.css", "stage.js", "transport.js", "typewriter.js", "ui.js"];
+      var box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:0;background:#0a0a12;color:#f4f3ff;font:16px/1.5 system-ui,sans-serif;padding:32px;overflow:auto;z-index:99999';
+      box.innerHTML = '<h2 style="margin:0 0 12px">The app could not start</h2><p id="boot-msg">Checking files…</p>';
+      document.body.appendChild(box);
+      Promise.all(files.map(function (f) {
+        return fetch(f, { cache: 'no-store' }).then(function (r) { return r.ok ? null : f; }, function () { return f; });
+      })).then(function (res) {
+        var missing = res.filter(Boolean);
+        var msg = document.getElementById('boot-msg');
+        if (missing.length) {
+          msg.innerHTML = 'These files are missing from the website:<br><b>' + missing.join(', ') +
+            '</b><br><br>Upload <b>every file</b> from the zip to the <b>top level</b> of the GitHub repository (next to index.html), then wait a minute and reload.';
+        } else {
+          msg.innerHTML = 'All files are present, but the app did not start. Please use an up-to-date Chrome, Edge, Safari or Firefox, and reload the page. If it still fails, open the browser console (F12) and share the red error message.';
+        }
+      });
+    }, 4000);
+  </script>
 </body>
 </html>

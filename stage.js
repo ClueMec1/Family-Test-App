@@ -1,9 +1,9 @@
 // Stage: renders the HDMI presentation from a display-state snapshot.
 // Used by the console preview, the console's fullscreen mode, and display.html (second screen).
-import { PHASE, OPTION_COLORS } from '../shared/protocol.js';
-import { h, fmtTime } from '../shared/ui.js';
-import { iconSvg } from '../shared/icons.js';
-import { qrSvg } from '../shared/qr.js';
+import { PHASE, OPTION_COLORS } from './protocol.js';
+import { h, fmtTime } from './ui.js';
+import { iconSvg } from './icons.js';
+import { qrSvg } from './qr.js';
 import { typedAt } from './typewriter.js';
 import { Particles } from './particles.js';
 

@@ -1,5 +1,5 @@
 // Host PWA entry: hash router  #/  |  #/project/:id  |  #/show/:id[?local=1]
-import { registerSW } from '../shared/ui.js';
+import { registerSW } from './ui.js';
 import { mountDashboard } from './dashboard.js';
 import { mountEditor } from './editor.js';
 import { mountShow } from './show.js';
