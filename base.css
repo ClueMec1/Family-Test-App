@@ -58,6 +58,7 @@ h1, h2, h3, .display { font-family: var(--font-display); letter-spacing: -.01em;
   transition: background .15s, border-color .15s, transform .08s;
   user-select: none;
 }
+a.btn { text-decoration: none; }
 .btn:hover { background: #29293f; border-color: #4a4a70; }
 .btn:active { transform: translateY(1px) scale(.99); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }

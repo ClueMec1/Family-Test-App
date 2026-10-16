@@ -18,7 +18,7 @@ export function h(tag, props, ...children) {
   const [, name = 'div', rest = ''] = tag.match(/^([a-z0-9-]*)(.*)$/i);
   const el = document.createElement(name || 'div');
   rest.replace(/([.#])([\w-]+)/g, (_, k, v) => { if (k === '.') el.classList.add(v); else el.id = v; });
-  if (props && (typeof props !== 'object' || props instanceof Node || Array.isArray(props))) {
+  if (props != null && props !== false && (typeof props !== 'object' || props instanceof Node || Array.isArray(props))) {
     children.unshift(props);
     props = null;
   }
@@ -66,6 +66,12 @@ export function debounce(fn, ms = 300) {
 
 export function registerSW(path = './sw.js') {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // When a newly published version takes over, reload once so every file is from the same version.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !reloaded) { reloaded = true; location.reload(); }
+    });
     window.addEventListener('load', () => navigator.serviceWorker.register(path).catch((e) => console.warn('SW', e)));
   }
 }

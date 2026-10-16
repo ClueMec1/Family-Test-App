@@ -174,3 +174,23 @@
 .end-board li { font-size: 28px; }
 .st-empty { height: 100%; display: grid; place-items: center; font-size: 50px; color: #8f8cb3; }
 .lobby-qr.qr-fallback { font-size: 26px; display: grid; place-items: center; text-align: center; }
+
+/* ---------- intro ---------- */
+.intro { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 34px; animation: introIn .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes introIn { from { opacity: 0; transform: translateY(30px) scale(.98); } }
+.intro-kicker { font-size: 36px; font-weight: 700; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+.intro-title { font-size: 124px; font-weight: 900; line-height: 1.05; text-wrap: balance; max-width: 1700px; }
+.intro-text { font-size: 48px; line-height: 1.35; white-space: pre-line; max-width: 1500px; color: #e6e3ff; }
+.intro-steps { list-style: none; margin: 10px 0 0; padding: 26px 40px; display: grid; gap: 14px; font-size: 36px; text-align: left; background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.1); border-radius: 26px; }
+.intro-steps li { display: flex; gap: 18px; align-items: baseline; }
+.intro-steps .num { color: var(--accent); font-family: var(--font-display); font-weight: 800; }
+.stage.video-mode .st-top, .stage.video-mode .st-banner, .stage.video-mode .st-timer { display: none; }
+.stage.video-mode .st-main { inset: 0; }
+.intro-video { position: absolute; inset: 0; background: #000; }
+.intro-video video { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* ---------- step banners ---------- */
+.st-banner[data-phase="teams"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); animation: pop .6s cubic-bezier(.2,1.4,.4,1); }
+.st-banner[data-phase="board"] { background: #7c3aed; border-color: #7c3aed; }
+.st-banner[data-phase="closed"] { background: var(--hot); border-color: var(--hot); }
+.stage[data-phase="board"] .st-lb { border-color: rgba(255,204,51,.6); box-shadow: 0 0 60px rgba(255,204,51,.18); }

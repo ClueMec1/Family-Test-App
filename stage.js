@@ -1,6 +1,7 @@
 // Stage: renders the HDMI presentation from a display-state snapshot.
 // Used by the console preview, the console's fullscreen mode, and display.html (second screen).
-import { PHASE, OPTION_COLORS } from './protocol.js';
+import { PHASE, OPTION_COLORS, RESULT_PHASES } from './protocol.js';
+import { getMedia } from './db.js';
 import { h, fmtTime } from './ui.js';
 import { iconSvg } from './icons.js';
 import { qrSvg } from './qr.js';
@@ -12,11 +13,15 @@ const BANNERS = {
   [PHASE.OPEN]: 'Vote now on your phone!',
   [PHASE.PAUSED]: 'Timer paused',
   [PHASE.CLOSED]: 'Voting closed',
+  [PHASE.BOARD]: 'The fastest players',
 };
+const VOTING = [PHASE.TYPING, PHASE.READY, PHASE.OPEN, PHASE.PAUSED];
 
 export class Stage {
-  constructor(container) {
+  /** audible: this copy of the stage plays intro-video sound (the console); others stay muted. */
+  constructor(container, { audible = false } = {}) {
     this.container = container;
+    this.audible = audible;
     this.fit = h('div.stage-fit');
     this.el = h('div.stage');
     this.fit.append(this.el);
@@ -64,23 +69,35 @@ export class Stage {
 
   setState(s) {
     this.state = s;
-    const view = s.phase === PHASE.LOBBY ? 'lobby' : s.phase === PHASE.END ? 'end' : s.slide ? 'q' : 'empty';
-    const key = view === 'q' ? `q:${s.slide.id}:${s.slide.question}:${s.slide.options.join('|')}:${s.teams.length}` : view + (view === 'end' ? JSON.stringify(s.final) : '');
+    const view = s.phase === PHASE.LOBBY ? 'lobby' : s.phase === PHASE.INTRO ? 'intro' : s.phase === PHASE.END ? 'end' : s.slide ? 'q' : 'empty';
+    const key = view === 'q' ? `q:${s.slide.id}:${s.slide.question}:${s.slide.options.join('|')}:${s.teams.length}`
+      : view === 'intro' ? `intro:${JSON.stringify(s.intro)}:${s.projectName}`
+        : view + (view === 'end' ? JSON.stringify(s.final) : '');
     if (key !== this.viewKey) {
       this.viewKey = key;
       this.typedDone = false;
       this.main.replaceChildren();
+      this._video = null;
       if (view === 'lobby') this._buildLobby(s);
+      else if (view === 'intro') this._buildIntro(s);
       else if (view === 'q') this._buildQuestion(s);
       else if (view === 'end') this._buildEnd(s);
       else this.main.append(h('div.st-empty', 'This project has no slides'));
     }
     if (s.typingStart !== this._typingStart) { this._typingStart = s.typingStart; this.typedDone = false; }
     this.el.dataset.phase = s.phase;
-    this.el.classList.toggle('with-lb', view === 'q' && s.overlays.leaderboard);
-    this.el.classList.toggle('with-teams', view === 'q' && s.overlays.teams && s.teams.length > 1);
-    this.el.classList.toggle('has-timer', view === 'q' && s.timerTotal > 0);
-    this.el.classList.toggle('with-pct', view === 'q' && (s.overlays.percent || s.phase === PHASE.REVEAL));
+    // Results are NEVER shown while people are voting. They appear step by step after the question:
+    // Reveal (answer + %) → Team results → Fastest players. The host's manual overlay toggles
+    // also work once voting has closed.
+    const q = view === 'q';
+    const after = q && !VOTING.includes(s.phase);
+    const ph = s.phase;
+    this.el.classList.toggle('with-pct', after && (RESULT_PHASES.includes(ph) || s.overlays.percent));
+    this.el.classList.toggle('with-teams', after && s.teams.length > 1 && (ph === PHASE.TEAMS || s.overlays.teams));
+    this.el.classList.toggle('with-lb', after && (ph === PHASE.BOARD || s.overlays.leaderboard));
+    this.el.classList.toggle('has-timer', q && s.timerTotal > 0 && VOTING.includes(ph));
+    this.el.classList.toggle('show-correct', q && RESULT_PHASES.includes(ph));
+    this.el.classList.toggle('video-mode', view === 'intro' && s.intro?.type === 'video' && !!s.intro.videoId);
 
     // header
     this.title.innerHTML = view === 'q'
@@ -97,7 +114,7 @@ export class Stage {
 
     // count overlay
     const st = s.stats;
-    this.count.hidden = !(s.overlays.count && view === 'q');
+    this.count.hidden = !(s.overlays.count && (view === 'q' || view === 'intro'));
     this.count.innerHTML = `${iconSvg('users')}<b>${st.online}</b><span>connected</span><i></i>${iconSvg('check')}<b>${st.answered}</b><span>answered</span>`;
 
     if (view === 'lobby') this._updateLobby(s);
@@ -105,11 +122,14 @@ export class Stage {
     this._updateLeaderboard(s, view);
 
     // banner
-    let banner = BANNERS[s.phase] || '';
-    if (s.phase === PHASE.REVEAL) banner = s.slide?.type === 'quiz' && s.slide.correct != null ? 'The correct answer!' : 'The results';
-    this.banner.textContent = banner;
-    this.banner.hidden = !banner || view !== 'q';
-    this.banner.dataset.phase = s.phase;
+    let banner = BANNERS[ph] || '';
+    if (ph === PHASE.CLOSED && s.timedOut) banner = 'Time’s up!';
+    if (ph === PHASE.REVEAL) banner = s.slide?.type === 'quiz' && s.slide.correct != null ? 'The correct answer!' : 'The results';
+    this.banner.replaceChildren();
+    if (ph === PHASE.TEAMS && q) this._teamBanner(s);
+    else this.banner.textContent = banner;
+    this.banner.hidden = !this.banner.textContent || !q;
+    this.banner.dataset.phase = ph;
   }
 
   /* ---------------- lobby ---------------- */
@@ -182,7 +202,7 @@ export class Stage {
   _updateQuestion(s) {
     const st = s.stats;
     const sl = s.slide;
-    const reveal = s.phase === PHASE.REVEAL;
+    const reveal = RESULT_PHASES.includes(s.phase);
     const maxCount = Math.max(...st.counts, 0);
     this.optEls.forEach((li, i) => {
       li.style.setProperty('--p', st.percents[i] + '%');
@@ -207,7 +227,7 @@ export class Stage {
   }
 
   _updateLeaderboard(s, view) {
-    const show = view === 'q' && s.overlays.leaderboard;
+    const show = view === 'q' && (s.phase === PHASE.BOARD || (s.overlays.leaderboard && !VOTING.includes(s.phase)));
     this.lb.hidden = !show;
     if (!show) return;
     const rows = s.stats.leaderboard;
@@ -220,6 +240,61 @@ export class Stage {
         ? h('ol', rows.map((r, i) => h('li', { style: { '--c': r.color } }, h('span.num', `${i + 1}.`), h('span.lb-name', { dir: 'auto' }, r.name), h('span.lb-ms', (r.ms / 1000).toFixed(2) + 's'))))
         : h('p.lb-empty', 'No answers yet'),
     );
+  }
+
+  /** "🏆 <team> wins this round!" (quiz: best % correct) or "Team results" (survey). */
+  _teamBanner(s) {
+    const sl = s.slide;
+    const st = s.stats;
+    const teams = s.teams.filter((t) => (st.teamTotals[t.id] || 0) > 0);
+    if (sl.type !== 'quiz' || sl.correct == null || teams.length < 2) { this.banner.textContent = 'Team results'; return; }
+    const scored = teams.map((t) => ({ t, pct: (st.byTeam[t.id]?.[sl.correct] || 0) / st.teamTotals[t.id] }));
+    scored.sort((a, b) => b.pct - a.pct);
+    if (scored[0].pct === scored[1].pct) { this.banner.textContent = 'It’s a tie!'; return; }
+    this.banner.append('🏆 Round winner: ', h('bdi', scored[0].t.name), ` · ${Math.round(scored[0].pct * 100)}% correct`);
+  }
+
+  /* ---------------- intro ---------------- */
+  _buildIntro(s) {
+    const intro = s.intro || {};
+    if (intro.type === 'video' && intro.videoId) {
+      const v = h('video.st-video', { playsInline: true, preload: 'auto' });
+      v.muted = true;
+      if (this.audible) v.dataset.audible = '1';
+      this._video = v;
+      this._videoReady = false;
+      getMedia(intro.videoId).then((item) => {
+        if (!item || this._video !== v) return;
+        v.src = URL.createObjectURL(item.blob);
+        v.onloadedmetadata = () => { this._videoReady = true; };
+      });
+      this.main.append(h('section.intro-video', v));
+      return;
+    }
+    const steps = [
+      'Look at the question on this screen',
+      'Tap the matching number on your phone',
+      'Answer fast — the quickest correct answers make the leaderboard',
+    ];
+    this.main.append(h('section.intro',
+      h('div.intro-kicker', 'Welcome'),
+      h('h1.intro-title', { dir: 'auto' }, intro.title || s.projectName),
+      intro.text ? h('div.intro-text', { dir: 'rtl' }, intro.text) : null,
+      intro.showSteps !== false ? h('ol.intro-steps', steps.map((t, i) => h('li', h('span.num', `${i + 1}.`), h('span', t)))) : null,
+    ));
+  }
+
+  _syncVideo(s) {
+    const v = this._video;
+    if (!v || !this._videoReady) return;
+    const want = (Date.now() - s.introStart) / 1000;
+    const dur = v.duration || 0;
+    if (dur && want >= dur) { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - dur) > 0.3) v.currentTime = Math.max(0, dur - 0.05); return; }
+    if (Math.abs(v.currentTime - want) > 0.6) v.currentTime = Math.max(0, want);
+    if (v.paused) {
+      if (this.audible) v.muted = !!window.__audioMuted?.();
+      v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    }
   }
 
   /* ---------------- end ---------------- */
@@ -235,13 +310,14 @@ export class Stage {
   }
 
   /* ---------------- per-frame: typing + timer ---------------- */
-  destroy() { this.dead = true; this._ro.disconnect(); this.fit.remove(); }
+  destroy() { this.dead = true; this._ro.disconnect(); if (this._video) { this._video.pause(); this._video.removeAttribute('src'); } this.fit.remove(); }
 
   _loop() {
     if (this.dead) return;
     requestAnimationFrame(this._loop);
     const s = this.state;
     if (!s) return;
+    if (this._video) this._syncVideo(s);
     if (this.optEls && s.slide && this.viewKey.startsWith('q:') && !this.typedDone) {
       const ty = typedAt(s.slide, Date.now() - s.typingStart);
       const lines = [this.qText, ...this.optEls.map((li) => li.typed)];

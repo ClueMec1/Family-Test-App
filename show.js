@@ -2,12 +2,13 @@
 // and offers operator controls, overlays, participants list, QR codes and the phone remote.
 import { h, toast, debounce, fmtTime } from './ui.js';
 import { icon } from './icons.js';
-import { PHASE, PHASE_LABEL } from './protocol.js';
+import { PHASE, PHASE_LABEL, RESULT_PHASES } from './protocol.js';
 import { renderQR } from './qr.js';
 import { getProject, getSession, saveSession, deleteSession, getJoinBase } from './db.js';
 import { ShowHub } from './hub.js';
 import { Stage } from './stage.js';
 import { audio } from './audio.js';
+import { sync } from './sync.js';
 
 const NET_LABEL = { online: 'Online', connecting: 'Connecting…', reconnecting: 'Reconnecting…', offline: 'Offline' };
 const SESSION_TTL = 12 * 3600e3;
@@ -20,14 +21,15 @@ export async function mountShow(root, id, { backend }) {
 
   const joinBase = await getJoinBase();
   const hub = new ShowHub(project, session, { backend, joinBase });
-  await audio.configure(project);
+  audio.configure(project);
   window.__hub = hub; // handy for debugging from devtools
+  window.__audioMuted = () => audio.muted;
 
   /* ---------- layout ---------- */
   const netPill = h('span.pill', h('span.dot'), h('span'));
   const pinPill = h('span.pill', 'Code', h('b.pin-pill'));
   const muteBtn = h('button.btn.sm', { title: 'Mute (M)', onclick: () => hub.command('mute') });
-  const bgBtn = h('button.btn.sm', { title: 'Background music (B)', hidden: !project.bgTrackId, onclick: () => hub.command('bg') });
+  const bgBtn = h('button.btn.sm', { title: 'Music on/off for this step (B)', onclick: () => { audio.unlock(); hub.command('music'); } });
   const bar = h('header.topbar',
     h('a.btn.sm.ghost', { href: `#/project/${id}`, title: 'Back to editing' }, icon('back'), 'Edit'),
     h('strong.display', { dir: 'auto' }, project.name),
@@ -45,19 +47,26 @@ export async function mountShow(root, id, { backend }) {
 
   const stageBox = h('div.stage-box', h('span.pill.live-tag', 'LIVE'));
   const strip = h('nav.strip');
-  const phaseCard = h('div.phase-card', h('div.phase-name', h('span.dot'), h('span')), h('div.phase-sub'));
+  const nextHint = h('div.next-hint');
+  const phaseCard = h('div.phase-card', h('div.phase-name', h('span.dot'), h('span')), h('div.phase-sub'), nextHint);
   const ctrl = (cmd, label, ico, kbd, cls = '') => h(`button.btn${cls}`, { dataset: { cmd }, onclick: () => { audio.unlock(); hub.command(cmd); } }, icon(ico), label, kbd ? h('span.kbd', kbd) : null);
   const ctrls = h('div.big-ctrls',
     ctrl('prev', 'Previous', 'prev', '←'),
     ctrl('next', 'Next', 'next', '→', '.primary'),
-    ctrl('toggleTimer', 'Start', 'play', 'Space', '.wide.hot'),
+  );
+  // Manual controls — Next does all of this automatically, these are for when you want to take over.
+  const manual = h('div.big-ctrls.manual',
+    ctrl('toggleTimer', 'Start', 'play', 'Space', '.wide'),
     ctrl('skip', 'Skip typing', 'skip', 'S'),
-    ctrl('lock', 'Lock', 'lock', 'L'),
-    ctrl('reveal', 'Reveal', 'eye', 'R', '.wide'),
+    ctrl('lock', 'Close voting', 'lock', 'L'),
+    ctrl('reveal', 'Reveal', 'eye', 'R'),
+    ctrl('intro', 'Intro', 'sparkle', 'I'),
     ctrl('lobby', 'Join screen', 'qr', 'J'),
+    ctrl('joinLock', 'Let late players join', 'users', ''),
     ctrl('resetSlide', 'Reset question', 'stop', ''),
   );
   const ov = (name, label, ico, kbd) => h('button.btn.sm', { dataset: { ov: name }, onclick: () => hub.command('overlay', name) }, icon(ico), label, h('span.kbd', kbd));
+  const ovHint = h('p.hint.ov-hint');
   const overlays = h('div.ov-grid',
     ov('count', 'Player count', 'users', '1'),
     ov('percent', 'Percentages', 'percent', '2'),
@@ -69,12 +78,67 @@ export async function mountShow(root, id, { backend }) {
   const side = h('aside.console-side',
     phaseCard,
     h('section.panel', ctrls),
-    h('section.panel', h('h3', icon('chart'), 'Show on screen'), overlays),
+    h('details.panel.manual-panel', h('summary', icon('edit'), ' Manual controls'), manual),
+    h('section.panel', h('h3', icon('chart'), 'Show on screen'), overlays, ovHint),
     h('section.panel', peopleHead, people),
   );
   root.append(bar, h('main.console', h('div.console-main', stageBox, strip), side));
 
-  const stage = new Stage(stageBox);
+  const stage = new Stage(stageBox, { audible: true });
+
+  /* ---------- sound: needs one click/key after a page reload (browser rule) ---------- */
+  const soundGate = h('button.sound-gate', { onclick: () => { audio.unlock(); } }, icon('vol'), 'Click to turn on sound');
+  stageBox.append(soundGate);
+  const paintGate = () => { soundGate.hidden = audio.ready; };
+  paintGate();
+  const unlockOnce = () => { audio.unlock(); };
+  window.addEventListener('pointerdown', unlockOnce);
+
+  /* ---------- music: decided by the current step ----------
+   * Join screen: the project's music, automatically.   Intro: the intro music (text intro).
+   * Voting: the question's music — the built-in ticking countdown by default, or a track.
+   * Everything else: silence, unless the host turns music on (Music button / B).            */
+  let musicOverride = null;          // null = automatic, 'on' / 'off' = host's choice for this step
+  let musicStep = '';
+  function stepMusic() {
+    const ph = hub.phase;
+    const s = hub.slide;
+    const intro = hub.intro;
+    const track = (id) => (id ? { kind: 'track', id } : null);
+    const countdown = () => ({ kind: 'countdown', endsAt: hub.timerEnd, total: hub.timerTotal });
+    let auto = null;
+    let manual = track(project.bgTrackId);   // what the Music button plays on this step
+    if (ph === PHASE.LOBBY) auto = track(project.bgTrackId);
+    else if (ph === PHASE.INTRO) {
+      if (intro.type === 'video' && intro.videoId) manual = null;          // the video has its own sound
+      else if (intro.musicId) { auto = track(intro.musicId); manual = auto; }
+    } else if (s && [PHASE.TYPING, PHASE.READY, PHASE.OPEN, PHASE.PAUSED].includes(ph)) {
+      const m = s.music ?? 'countdown';
+      const autoOn = s.musicAuto !== false;
+      if (m === 'countdown') {
+        manual = ph === PHASE.OPEN ? countdown() : manual;
+        if (ph === PHASE.OPEN && autoOn) auto = countdown();
+      } else if (m !== 'none') {
+        manual = track(m);
+        if ((ph === PHASE.OPEN || ph === PHASE.PAUSED) && autoOn) auto = track(m);
+      }
+    }
+    return { auto, manual };
+  }
+  function applyMusic() {
+    const step = `${hub.phase}:${hub.idx}`;
+    if (step !== musicStep) { musicStep = step; musicOverride = null; }
+    const { auto, manual } = stepMusic();
+    const want = musicOverride === 'off' ? null : musicOverride === 'on' ? (manual || auto) : auto;
+    audio.setMusic(want);
+    hub.musicOn = !!want;
+    hub.musicAvailable = !!(manual || auto);
+  }
+  hub.on('musicToggle', () => {
+    audio.unlock();
+    musicOverride = hub.musicOn ? 'off' : 'on';
+    applyMusic();
+  });
 
   /* ---------- second-screen display channel ---------- */
   const bc = new BroadcastChannel('clicker-display');
@@ -83,7 +147,7 @@ export async function mountShow(root, id, { backend }) {
     if (e.data?.t === 'cmd') hub.command(e.data.cmd, e.data.value);
   };
   function openDisplayWindow() {
-    window.open('./display.html', 'clicker-display', 'popup,width=1280,height=720');
+    window.open('./display.html' + location.search, 'clicker-display', 'popup,width=1280,height=720');
     toast('Drag the window to the HDMI screen and click it for fullscreen', 'info', 4500);
   }
   function fullscreen() {
@@ -94,15 +158,27 @@ export async function mountShow(root, id, { backend }) {
 
   /* ---------- render ---------- */
   const pushRemotes = throttle(() => hub.pushRemotes(), 200);
+  // Tell every synced device that this show is running (so their dashboards/remotes can control it).
+  let netReady = false;
+  const announce = throttle(() => {
+    if (!netReady || hub.destroyed) return;
+    sync.announceShow({
+      projectId: project.id, projectName: project.name, pin: hub.pin, remoteKey: hub.remoteKey, backend,
+      phase: hub.phase, idx: hub.idx, total: hub.slides.length, players: hub.onlineCount(),
+    });
+  }, 1000);
   let resetting = false;
   const persist = debounce(() => { if (!resetting) saveSession(hub.serialize()); }, 800);
 
   function render() {
     if (hub.destroyed) return;
+    applyMusic();
+    paintGate();
     const ds = hub.displayState();
     stage.setState(ds);
     bc.postMessage({ t: 'ds', state: ds });
     pushRemotes();
+    announce();
     persist();
 
     netPill.querySelector('.dot').className = 'dot ' + hub.netStatus;
@@ -110,8 +186,9 @@ export async function mountShow(root, id, { backend }) {
     pinPill.querySelector('b').textContent = hub.pin;
     muteBtn.replaceChildren(icon(audio.muted ? 'mute' : 'vol'));
     muteBtn.classList.toggle('on', audio.muted);
-    bgBtn.replaceChildren(icon('music'), audio.bgPlaying ? 'Stop music' : 'Music');
-    bgBtn.classList.toggle('on', audio.bgPlaying);
+    bgBtn.replaceChildren(icon('music'), hub.musicOn ? 'Music on' : 'Music off');
+    bgBtn.classList.toggle('on', !!hub.musicOn);
+    bgBtn.disabled = !hub.musicAvailable && !hub.musicOn;
 
     // phase card
     const s = hub.slide;
@@ -119,21 +196,35 @@ export async function mountShow(root, id, { backend }) {
     phaseCard.querySelector('.phase-name span:last-child').textContent = PHASE_LABEL[hub.phase];
     const rem = hub.remaining();
     const sub = phaseCard.querySelector('.phase-sub');
+    nextHint.replaceChildren(h('span.kbd', '→'), h('b', 'Next: '), hub.nextLabel());
+    nextHint.hidden = hub.phase === PHASE.END;
     if (hub.phase === PHASE.LOBBY) sub.replaceChildren(`${ds.stats.joined} joined · ${ds.stats.online} connected`);
+    else if (hub.phase === PHASE.INTRO) sub.replaceChildren(`Intro · ${ds.stats.online} connected · joining ${hub.joinOpen ? 'open' : 'closed'}`);
     else if (s) sub.replaceChildren(`${hub.idx + 1}/${hub.slides.length}${rem != null ? ' · ' + fmtTime(rem) + 's' : ''} · `, h('span', { dir: 'rtl' }, s.question));
     else sub.replaceChildren();
 
     // control states
-    const tBtn = ctrls.querySelector('[data-cmd="toggleTimer"]');
     const open = hub.phase === PHASE.OPEN;
-    tBtn.replaceChildren(icon(open ? 'pause' : 'play'), open ? 'Pause' : hub.phase === PHASE.PAUSED ? 'Resume' : hub.phase === PHASE.CLOSED ? 'Reopen voting' : 'Open voting', h('span.kbd', 'Space'));
-    tBtn.disabled = [PHASE.LOBBY, PHASE.END, PHASE.REVEAL].includes(hub.phase);
-    ctrls.querySelector('[data-cmd="skip"]').disabled = hub.phase !== PHASE.TYPING;
-    ctrls.querySelector('[data-cmd="lock"]').disabled = ![PHASE.OPEN, PHASE.PAUSED, PHASE.READY].includes(hub.phase);
-    ctrls.querySelector('[data-cmd="reveal"]').disabled = [PHASE.LOBBY, PHASE.END].includes(hub.phase);
+    const tBtn = manual.querySelector('[data-cmd="toggleTimer"]');
+    tBtn.replaceChildren(icon(open ? 'pause' : 'play'), open ? 'Pause timer' : hub.phase === PHASE.PAUSED ? 'Resume timer' : hub.phase === PHASE.CLOSED ? 'Reopen voting' : 'Open voting', h('span.kbd', 'Space'));
+    tBtn.disabled = [PHASE.LOBBY, PHASE.INTRO, PHASE.END, ...RESULT_PHASES].includes(hub.phase);
+    manual.querySelector('[data-cmd="skip"]').disabled = hub.phase !== PHASE.TYPING;
+    manual.querySelector('[data-cmd="lock"]').disabled = ![PHASE.OPEN, PHASE.PAUSED, PHASE.READY, PHASE.TYPING].includes(hub.phase);
+    manual.querySelector('[data-cmd="reveal"]').disabled = [PHASE.LOBBY, PHASE.INTRO, PHASE.END].includes(hub.phase) || !s;
+    manual.querySelector('[data-cmd="intro"]').disabled = !hub.hasIntro || hub.phase === PHASE.INTRO;
+    const jl = manual.querySelector('[data-cmd="joinLock"]');
+    jl.replaceChildren(icon('users'), hub.phase === PHASE.LOBBY ? 'Joining is open' : hub.lateJoin ? 'Close joining' : 'Let late players join');
+    jl.disabled = hub.phase === PHASE.LOBBY;
+    jl.classList.toggle('on', hub.lateJoin);
     ctrls.querySelector('[data-cmd="next"]').disabled = hub.phase === PHASE.END;
-    overlays.querySelectorAll('[data-ov]').forEach((b) => b.classList.toggle('on', !!hub.overlays[b.dataset.ov]));
-    overlays.querySelector('[data-ov="teams"]').disabled = hub.teams.length < 2;
+    ctrls.querySelector('[data-cmd="prev"]').disabled = hub.phase === PHASE.LOBBY;
+    const voting = [PHASE.TYPING, PHASE.READY, PHASE.OPEN, PHASE.PAUSED].includes(hub.phase);
+    overlays.querySelectorAll('[data-ov]').forEach((b) => {
+      b.classList.toggle('on', !!hub.overlays[b.dataset.ov]);
+      if (b.dataset.ov !== 'count') b.disabled = voting || (b.dataset.ov === 'teams' && hub.teams.length < 2);
+    });
+    ovHint.textContent = voting ? 'Results stay hidden while people vote — they appear step by step after the question.' : '';
+    ovHint.hidden = !voting;
 
     // strip
     const sig = `${hub.phase}:${hub.idx}:${Object.keys(hub.answers).join(',')}`;
@@ -141,8 +232,9 @@ export async function mountShow(root, id, { backend }) {
       strip._sig = sig;
       strip.replaceChildren(
         h('button.chip.lobby-chip', { class: hub.phase === PHASE.LOBBY ? 'active' : '', onclick: () => hub.command('lobby') }, icon('qr'), h('span', 'Join')),
+        hub.hasIntro ? h('button.chip.lobby-chip', { class: hub.phase === PHASE.INTRO ? 'active' : '', onclick: () => hub.command('intro') }, icon('sparkle'), h('span', 'Intro')) : null,
         ...hub.slides.map((sl, i) => h('button.chip', {
-          class: [hub.phase !== PHASE.LOBBY && hub.phase !== PHASE.END && i === hub.idx ? 'active' : '', hub.answers[sl.id] ? 'done' : ''].join(' '),
+          class: [![PHASE.LOBBY, PHASE.INTRO, PHASE.END].includes(hub.phase) && i === hub.idx ? 'active' : '', hub.answers[sl.id] ? 'done' : ''].join(' '),
           title: sl.question,
           onclick: () => hub.command('goto', i),
         }, h('b', `${i + 1}.`), h('span', { dir: 'rtl' }, sl.question || '—'))),
@@ -168,11 +260,13 @@ export async function mountShow(root, id, { backend }) {
 
   hub.on('change', render);
   hub.on('fx', (e) => { if (hub.destroyed) return; stage.fxEvent(e); bc.postMessage({ t: 'fx', e }); });
-  const offAudio = audio.onChange(() => hub.changed());
+  const offAudio = audio.onChange(() => { paintGate(); hub.changed(); });
   const remoteTimer = setInterval(() => { if (hub.remotes.size) hub.pushRemotes(); if (hub.remaining() != null) render(); }, 1000);
   render();
 
   hub.start().then(() => {
+    netReady = true;
+    announce();
     if (!session) toast(`Session ready · code ${hub.pin}`, 'ok');
     else toast(`Resumed your previous session · code ${hub.pin}`, 'ok');
     if (!hub.joinUrl()) setTimeout(() => toast('Set the Join app address on the dashboard so the QR codes work', 'error', 7000), 1200);
@@ -220,6 +314,7 @@ export async function mountShow(root, id, { backend }) {
   async function resetSession() {
     if (!confirm('Reset the session? All players and answers will be deleted and a new code created.')) return;
     resetting = true;
+    sync.endShow(project.id);
     hub.destroy();
     await deleteSession(id);
     location.reload();
@@ -230,7 +325,7 @@ export async function mountShow(root, id, { backend }) {
     if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
     const map = {
       ArrowRight: 'next', PageDown: 'next', ArrowLeft: 'prev', PageUp: 'prev', ' ': 'toggleTimer',
-      s: 'skip', l: 'lock', r: 'reveal', j: 'lobby', m: 'mute', b: 'bg',
+      s: 'skip', l: 'lock', r: 'reveal', j: 'lobby', i: 'intro', m: 'mute', b: 'music',
     };
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     audio.unlock();
@@ -246,7 +341,7 @@ export async function mountShow(root, id, { backend }) {
   grabWake();
   const onVis = () => { if (document.visibilityState === 'visible') grabWake(); };
   document.addEventListener('visibilitychange', onVis);
-  const onUnload = () => { if (!resetting) saveSession(hub.serialize()); };
+  const onUnload = () => { sync.endShow(project.id); if (!resetting) saveSession(hub.serialize()); };
   window.addEventListener('beforeunload', onUnload);
 
   return async () => {
@@ -254,12 +349,14 @@ export async function mountShow(root, id, { backend }) {
     window.removeEventListener('beforeunload', onUnload);
     document.removeEventListener('visibilitychange', onVis);
     clearInterval(remoteTimer);
+    sync.endShow(project.id);
     offAudio();
     if (!resetting) try { await saveSession(hub.serialize()); } catch (e) { /* */ }
     hub.destroy();
     stage.destroy();
     bc.close();
-    audio.stopBg();
+    audio.setMusic(null);
+    window.removeEventListener('pointerdown', unlockOnce);
     wake?.release?.();
     if (document.fullscreenElement) document.exitFullscreen();
     document.querySelectorAll('.modal-back').forEach((m) => m.remove());

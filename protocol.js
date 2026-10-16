@@ -31,26 +31,35 @@ export const T = {
 
 /** Show phases */
 export const PHASE = {
-  LOBBY: 'lobby',     // join screen on HDMI
+  LOBBY: 'lobby',     // join screen on HDMI (joining open)
+  INTRO: 'intro',     // host's intro screen (text + music, or a video)
   TYPING: 'typing',   // question typing onto the screen, answers not yet accepted
   READY: 'ready',     // typed, waiting for host to open voting (autoStart off)
   OPEN: 'open',       // accepting answers (timer may be running)
   PAUSED: 'paused',   // timer paused, answers not accepted
   CLOSED: 'closed',   // voting closed (timer ran out or host locked)
-  REVEAL: 'reveal',   // correct answer shown
+  REVEAL: 'reveal',   // correct answer + percentages shown
+  TEAMS: 'teams',     // team breakdown + round winner
+  BOARD: 'board',     // top 10 fastest (correct) players
   END: 'end',         // end-of-show screen
 };
 
 export const PHASE_LABEL = {
   [PHASE.LOBBY]: 'Join screen',
+  [PHASE.INTRO]: 'Intro',
   [PHASE.TYPING]: 'Typing question…',
   [PHASE.READY]: 'Ready — waiting to open',
   [PHASE.OPEN]: 'Voting open',
   [PHASE.PAUSED]: 'Paused',
   [PHASE.CLOSED]: 'Voting closed',
   [PHASE.REVEAL]: 'Answer revealed',
+  [PHASE.TEAMS]: 'Team results',
+  [PHASE.BOARD]: 'Fastest players',
   [PHASE.END]: 'Show ended',
 };
+
+/** Phases where results (percentages, teams, leaderboard) may be shown. Never during voting. */
+export const RESULT_PHASES = [PHASE.REVEAL, PHASE.TEAMS, PHASE.BOARD];
 
 export const OVERLAYS = ['count', 'percent', 'teams', 'leaderboard'];
 

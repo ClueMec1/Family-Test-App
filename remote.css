@@ -34,3 +34,19 @@ body { background: radial-gradient(120% 60% at 100% 0%, #241a3a 0%, var(--ink) 5
 .r-msg { flex: 1; display: grid; place-items: center; align-content: center; gap: 14px; text-align: center; color: var(--muted); padding: 30px; }
 .r-msg h2 { color: var(--text); }
 select.input { font-size: .95rem; }
+
+/* show picker */
+.r-shows { display: grid; gap: 10px; }
+.r-show { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 16px 18px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line-2); color: var(--text); text-decoration: none; }
+.r-show:active { transform: scale(.99); }
+.r-show b { font-family: var(--font-display); font-size: 1.2rem; }
+.r-show span { grid-column: 1; color: var(--muted); font-size: .88rem; }
+.r-show .icon { grid-row: 1 / span 2; grid-column: 2; width: 26px; height: 26px; color: var(--accent); }
+.pulse-sm { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--accent); animation: blink 1.4s infinite; }
+
+/* big Next button that says what it will do */
+.r-next { min-height: 120px; border-radius: 24px; flex-direction: column; gap: 6px; padding: 14px; }
+.r-next-top { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; }
+.r-next-top .icon { width: 30px; height: 30px; }
+.r-next-what { font-size: .98rem; font-weight: 600; opacity: .85; text-align: center; }
+.r-row > span:empty { display: block; }

@@ -1,6 +1,6 @@
 // ShowHub: the authoritative live-show state machine. Lives in the Host console tab.
 // Owns participants, answers, phases, timers and the network hub.
-import { T, PHASE, STALE_MS, OVERLAYS, teamsFromNames, cleanName, uid, randomPin } from './protocol.js';
+import { T, PHASE, STALE_MS, OVERLAYS, RESULT_PHASES, teamsFromNames, cleanName, uid, randomPin } from './protocol.js';
 import { openHub } from './transport.js';
 import { typingDuration } from './typewriter.js';
 import { audio } from './audio.js';
@@ -19,7 +19,10 @@ export class ShowHub {
     this.remoteKey = session?.remoteKey || uid(12);
     this.idx = clampIdx(session?.idx ?? 0, this.slides.length);
     this.phase = session?.phase && session.phase !== PHASE.TYPING ? session.phase : PHASE.LOBBY;
-    if (this.phase === PHASE.OPEN || this.phase === PHASE.READY) this.phase = PHASE.CLOSED;   // don't resume mid-vote blindly
+    if (this.phase === PHASE.OPEN || this.phase === PHASE.READY || this.phase === PHASE.PAUSED) this.phase = PHASE.CLOSED;   // don't resume mid-vote blindly
+    if (this.phase === PHASE.INTRO && !this.hasIntro) this.phase = PHASE.LOBBY;
+    this.introStart = Date.now();
+    this.lateJoin = false;          // host can let latecomers in after the join screen
     this.overlays = { count: true, percent: false, teams: false, leaderboard: false, ...(session?.overlays || {}) };
     this.answers = session?.answers || {};       // slideId -> { pid: {c, ms, at} }
     this.participants = new Map();               // pid -> {pid,name,team,joinedAt,lastSeen,conns:Set}
@@ -47,6 +50,10 @@ export class ShowHub {
   }
 
   get slide() { return this.slides[this.idx] || null; }
+  get intro() { return this.project.intro || { type: 'none' }; }
+  get hasIntro() { const i = this.intro; return i.type === 'text' || (i.type === 'video' && !!i.videoId); }
+  /** New players may join only on the join screen (or when the host lets latecomers in). */
+  get joinOpen() { return this.phase === PHASE.LOBBY || this.lateJoin; }
   get timerTotal() { return (this.slide?.timer || 0) * 1000; }
 
   /* ---------------- network ---------------- */
@@ -114,6 +121,7 @@ export class ShowHub {
       projectName: this.project.name,
       teams: this.teams,
       joined: !!p,
+      locked: !p && !this.joinOpen,
       me: p ? { name: p.name, team: p.team } : null,
     };
   }
@@ -131,6 +139,7 @@ export class ShowHub {
         const team = this.teams.length ? (this.teams.find((t) => t.id === m.team)?.id || this.teams[0].id) : null;
         let rec = this.participants.get(pid);
         const isNew = !rec;
+        if (!rec && !this.joinOpen) { conn.send(this._info(pid)); return; }   // joining is closed
         if (!rec) {
           rec = { pid, name, team, joinedAt: Date.now(), lastSeen: Date.now(), conns: new Set() };
           this.participants.set(pid, rec);
@@ -162,7 +171,8 @@ export class ShowHub {
     bucket[p.pid] = { c, ms, at: Date.now() };
     reply(true);
     audio.sfx('answer');
-    this.emit('fx', { kind: 'answer', name: p.name, color: this._teamColor(p.team), choice: c });
+    // the flying badge must not give away the team or the choice
+    this.emit('fx', { kind: 'answer', name: p.name, color: '#ffd166' });
     this.changed();
   }
 
@@ -188,49 +198,118 @@ export class ShowHub {
       case 'reveal': return this.reveal();
       case 'overlay': return this.toggleOverlay(value);
       case 'mute': audio.toggleMute(); return this.changed();
-      case 'bg': audio.toggleBg(); setTimeout(() => this.changed(), 50); return this.changed();
+      case 'bg': case 'music': this.emit('musicToggle'); return this.changed();
+      case 'joinLock': return this.toggleLateJoin();
+      case 'intro': return this.toIntro();
       case 'resetSlide': return this.resetSlide();
       case 'end': return this.endShow();
       default: return undefined;
     }
   }
 
-  /* ---------------- show flow ---------------- */
-  toLobby() { this.phase = PHASE.LOBBY; this._clearTimer(); this._broadcastParticipants(); this.changed(); }
-  endShow() { this.phase = PHASE.END; this._clearTimer(); this._broadcastParticipants(); this.changed(); }
+  /* ---------------- show flow ----------------
+   * The host only needs NEXT. Each press moves one step:
+   *   Join screen → (joining closes) → Intro → Question: typing → voting → closed
+   *   → Reveal answer + % → Team results → Fastest players → next question … → Final results
+   */
+  _setPhase(ph) {
+    const wasJoinOpen = this.joinOpen;
+    this.phase = ph;
+    if (ph === PHASE.LOBBY) this.lateJoin = false;
+    if (wasJoinOpen !== this.joinOpen) this._broadcastInfo();
+    this._broadcastParticipants();
+    this.changed();
+  }
+
+  toLobby() { this._clearTimer(); this._setPhase(PHASE.LOBBY); }
+  toIntro() {
+    if (!this.hasIntro) return this.goto(0);
+    this._clearTimer();
+    this.introStart = Date.now();
+    this._setPhase(PHASE.INTRO);
+  }
+  endShow() { this._clearTimer(); this._setPhase(PHASE.END); }
+
+  toggleLateJoin() {
+    if (this.phase === PHASE.LOBBY) return;
+    this.lateJoin = !this.lateJoin;
+    this._broadcastInfo();
+    this.changed();
+  }
+
+  _answered(s = this.slide) { return Object.keys((s && this.answers[s.id]) || {}).length; }
+  _hasTeamStep(s = this.slide) { return !!s && s.teamStep !== false && this.teams.length > 1 && this._answered(s) > 0; }
+  _hasBoardStep(s = this.slide) {
+    if (!s || s.type !== 'quiz' || s.correct == null || s.boardStep === false) return false;
+    return Object.values(this.answers[s.id] || {}).some((a) => a.c === s.correct);
+  }
+  /** The last results step of a slide (where "previous" lands when coming back to it). */
+  _lastStep(s) {
+    if (!this._answered(s)) return PHASE.CLOSED;
+    return this._hasBoardStep(s) ? PHASE.BOARD : this._hasTeamStep(s) ? PHASE.TEAMS : PHASE.REVEAL;
+  }
 
   next() {
-    if (this.phase === PHASE.LOBBY) return this.goto(this.idx);
-    if (this.phase === PHASE.END) return undefined;
-    if (this.idx >= this.slides.length - 1) return this.endShow();
-    return this.goto(this.idx + 1);
+    if (!this.slides.length && ![PHASE.LOBBY, PHASE.INTRO].includes(this.phase)) return this.endShow();
+    switch (this.phase) {
+      case PHASE.LOBBY: return this.hasIntro ? this.toIntro() : this.slides.length ? this.goto(0) : this.endShow();
+      case PHASE.INTRO: return this.slides.length ? this.goto(0) : this.endShow();
+      case PHASE.TYPING: case PHASE.READY: return this.openVoting();
+      case PHASE.OPEN: case PHASE.PAUSED: return this.lock();
+      case PHASE.CLOSED: return this.reveal();
+      case PHASE.REVEAL:
+        if (this._hasTeamStep()) return this.showTeams();
+        if (this._hasBoardStep()) return this.showBoard();
+        return this._advance();
+      case PHASE.TEAMS: return this._hasBoardStep() ? this.showBoard() : this._advance();
+      case PHASE.BOARD: return this._advance();
+      default: return undefined;
+    }
   }
 
+  _advance() { return this.idx < this.slides.length - 1 ? this.goto(this.idx + 1) : this.endShow(); }
+
   prev() {
-    if (this.phase === PHASE.END) return this.goto(this.slides.length - 1);
-    if (this.idx <= 0 || this.phase === PHASE.LOBBY) return this.toLobby();
-    return this.goto(this.idx - 1);
+    switch (this.phase) {
+      case PHASE.LOBBY: return undefined;
+      case PHASE.INTRO: return this.toLobby();
+      case PHASE.END:
+        if (!this.slides.length) return this.hasIntro ? this.toIntro() : this.toLobby();
+        return this._showStep(this.slides.length - 1, this._lastStep(this.slides[this.slides.length - 1]));
+      case PHASE.BOARD: return this._hasTeamStep() ? this.showTeams() : this.reveal(true);
+      case PHASE.TEAMS: return this.reveal(true);
+      case PHASE.REVEAL: return this._showStep(this.idx, PHASE.CLOSED);
+      default:   // typing / ready / open / paused / closed
+        if (this.idx > 0) return this._showStep(this.idx - 1, this._lastStep(this.slides[this.idx - 1]));
+        return this.hasIntro ? this.toIntro() : this.toLobby();
+    }
   }
+
+  /** Jump to a slide in a given (already-run) step, fully typed. */
+  _showStep(i, phase) {
+    this.idx = clampIdx(i, this.slides.length);
+    this._clearTimer();
+    this._resetOverlays();
+    this.typingStart = Date.now() - typingDuration(this.slide) - 1;
+    this._setPhase(phase);
+  }
+
+  _resetOverlays() { this.overlays.percent = false; this.overlays.teams = false; this.overlays.leaderboard = false; }
 
   goto(i) {
     if (!this.slides.length) return this.toLobby();
     this.idx = clampIdx(i, this.slides.length);
     const s = this.slide;
     this._clearTimer();
-    this.overlays.teams = !!(s.teamSplit && this.teams.length > 1);
-    this.overlays.leaderboard = false;
-    this.overlays.percent = false;
-    const hasAnswers = Object.keys(this.answers[s.id] || {}).length > 0;
-    if (hasAnswers) {
-      // revisiting a slide that already ran: show it typed and closed
+    this._resetOverlays();
+    if (this._answered(s) > 0) {
+      // revisiting a slide that already ran: typed and closed, results still hidden until Next
       this.typingStart = Date.now() - typingDuration(s) - 1;
-      this.phase = PHASE.CLOSED;
+      this._setPhase(PHASE.CLOSED);
     } else {
       this.typingStart = Date.now();
-      this.phase = PHASE.TYPING;
+      this._setPhase(PHASE.TYPING);
     }
-    this._broadcastParticipants();
-    this.changed();
   }
 
   skipTyping() {
@@ -241,7 +320,7 @@ export class ShowHub {
 
   _typingDone() {
     if (this.project.autoStart !== false) this.openVoting();
-    else { this.phase = PHASE.READY; this._broadcastParticipants(); this.changed(); }
+    else this._setPhase(PHASE.READY);
   }
 
   openVoting() {
@@ -249,34 +328,28 @@ export class ShowHub {
     if (!s || ![PHASE.TYPING, PHASE.READY, PHASE.CLOSED, PHASE.PAUSED].includes(this.phase)) return;
     if (this.phase === PHASE.PAUSED) return this.resume();
     if (this.phase === PHASE.TYPING) this.typingStart = Date.now() - typingDuration(s) - 1;
-    this.phase = PHASE.OPEN;
     this.openedAt = Date.now();
     this.pausedTotal = 0;
     this.timerEnd = s.timer ? Date.now() + s.timer * 1000 : null;
     this.timerRemaining = null;
     this._lastTickSec = null;
+    this._resetOverlays();
     audio.sfx('start');
-    audio.duck(true);
-    this._broadcastParticipants();
-    this.changed();
+    this._setPhase(PHASE.OPEN);
   }
 
   pause() {
     if (this.phase !== PHASE.OPEN) return;
-    this.phase = PHASE.PAUSED;
     this.pausedAt = Date.now();
     if (this.timerEnd) { this.timerRemaining = Math.max(0, this.timerEnd - Date.now()); this.timerEnd = null; }
-    this._broadcastParticipants();
-    this.changed();
+    this._setPhase(PHASE.PAUSED);
   }
 
   resume() {
     if (this.phase !== PHASE.PAUSED) return;
-    this.phase = PHASE.OPEN;
     this.pausedTotal += Date.now() - (this.pausedAt || Date.now());
     if (this.timerRemaining != null) { this.timerEnd = Date.now() + this.timerRemaining; this.timerRemaining = null; }
-    this._broadcastParticipants();
-    this.changed();
+    this._setPhase(PHASE.OPEN);
   }
 
   toggleTimer() {
@@ -286,30 +359,41 @@ export class ShowHub {
   }
 
   lock() {
-    if (![PHASE.OPEN, PHASE.PAUSED, PHASE.READY].includes(this.phase)) return;
+    if (![PHASE.OPEN, PHASE.PAUSED, PHASE.READY, PHASE.TYPING].includes(this.phase)) return;
+    if (this.phase === PHASE.TYPING) this.typingStart = Date.now() - typingDuration(this.slide) - 1;
     this._close();
   }
 
   _close() {
-    this.phase = PHASE.CLOSED;
+    this.timedOut = false;
     this.timerEnd = null;
     this.timerRemaining = null;
-    audio.duck(false);
-    this._broadcastParticipants();
-    this.changed();
+    this._setPhase(PHASE.CLOSED);
   }
 
-  reveal() {
-    if (!this.slide || this.phase === PHASE.LOBBY || this.phase === PHASE.END) return;
+  /** Reveal the correct answer (quiz) / the results (survey), with percentages. */
+  reveal(quiet = false) {
+    if (!this.slide || [PHASE.LOBBY, PHASE.INTRO, PHASE.END].includes(this.phase)) return;
     if (this.phase === PHASE.TYPING) this.typingStart = Date.now() - typingDuration(this.slide) - 1;
     this._clearTimer();
-    this.phase = PHASE.REVEAL;
-    this.overlays.percent = true;
-    audio.duck(false);
-    audio.sfx('reveal');
-    this.emit('fx', { kind: 'reveal' });
-    this._broadcastParticipants();
-    this.changed();
+    this._resetOverlays();
+    if (!quiet) {
+      audio.sfx('reveal');
+      this.emit('fx', { kind: 'reveal' });
+    }
+    this._setPhase(PHASE.REVEAL);
+  }
+
+  showTeams() {
+    if (!this.slide) return;
+    this._resetOverlays();
+    this._setPhase(PHASE.TEAMS);
+  }
+
+  showBoard() {
+    if (!this.slide) return;
+    this._resetOverlays();
+    this._setPhase(PHASE.BOARD);
   }
 
   resetSlide() {
@@ -324,7 +408,32 @@ export class ShowHub {
     this.changed();
   }
 
-  _clearTimer() { this.timerEnd = null; this.timerRemaining = null; this.openedAt = null; audio.duck(false); }
+  _clearTimer() { this.timerEnd = null; this.timerRemaining = null; this.openedAt = null; }
+
+  /** Plain-English description of what NEXT will do right now (shown to the host). */
+  nextLabel() {
+    const s = this.slide;
+    const nextQ = () => (this.idx < this.slides.length - 1 ? `Go to question ${this.idx + 2}` : 'Show the final results');
+    switch (this.phase) {
+      case PHASE.LOBBY:
+        if (this.hasIntro) return 'Close joining & play the intro';
+        return this.slides.length ? 'Close joining & start question 1' : 'Close joining & end';
+      case PHASE.INTRO: return this.slides.length ? 'Start question 1' : 'End the show';
+      case PHASE.TYPING: return 'Open voting now';
+      case PHASE.READY: return 'Open voting';
+      case PHASE.OPEN: return this.timerEnd ? 'Stop the countdown & close voting' : 'Close voting';
+      case PHASE.PAUSED: return 'Close voting';
+      case PHASE.CLOSED: return s?.type === 'quiz' && s.correct != null ? 'Reveal the correct answer' : 'Reveal the results';
+      case PHASE.REVEAL:
+        if (this._hasTeamStep()) return 'Show the team results';
+        if (this._hasBoardStep()) return 'Show the fastest players';
+        return nextQ();
+      case PHASE.TEAMS: return this._hasBoardStep() ? 'Show the fastest players' : nextQ();
+      case PHASE.BOARD: return nextQ();
+      case PHASE.END: return 'The show is over';
+      default: return '';
+    }
+  }
 
   _onTick() {
     const now = Date.now();
@@ -332,8 +441,17 @@ export class ShowHub {
     if (this.phase === PHASE.OPEN && this.timerEnd) {
       const left = this.timerEnd - now;
       const sec = Math.ceil(left / 1000);
-      if (sec <= 5 && sec > 0 && sec !== this._lastTickSec) { this._lastTickSec = sec; audio.sfx('tick'); }
-      if (left <= 0) { audio.sfx('timeup'); this._close(); }
+      // beeps for the last seconds only when the question is silent (the built-in countdown has its own)
+      if ((this.slide.music ?? 'countdown') === 'none' && sec <= 5 && sec > 0 && sec !== this._lastTickSec) { this._lastTickSec = sec; audio.sfx('tick'); }
+      if (left <= 0) {
+        audio.sfx('timeup');
+        this._close();
+        this.timedOut = true;
+        if (this.project.autoReveal) {
+          const slideId = this.slide.id;
+          setTimeout(() => { if (this.phase === PHASE.CLOSED && this.slide?.id === slideId) this.reveal(); }, 1800);
+        }
+      }
     }
     // presence: mark silent participants offline
     if (!this._lastPresence || now - this._lastPresence > 2000) {
@@ -411,6 +529,10 @@ export class ShowHub {
       stats: this.stats(),
       netStatus: this.netStatus,
       final: this.phase === PHASE.END ? this.finalBoard() : null,
+      intro: this.intro,
+      introStart: this.introStart,
+      joinOpen: this.joinOpen,
+      timedOut: !!this.timedOut && this.phase === PHASE.CLOSED,
       recentNames: this.phase === PHASE.LOBBY
         ? [...this.participants.values()].sort((a, b) => a.joinedAt - b.joinedAt).slice(-30).map((p) => ({ name: p.name, color: this._teamColor(p.team) }))
         : [],
@@ -441,7 +563,7 @@ export class ShowHub {
   /** Per-participant state. Times are relative (ms) so device clock skew doesn't matter. */
   participantState(pid) {
     const s = this.slide;
-    const active = s && ![PHASE.LOBBY, PHASE.END].includes(this.phase);
+    const active = s && ![PHASE.LOBBY, PHASE.INTRO, PHASE.END].includes(this.phase);
     const mine = active ? this.answers[s.id]?.[pid] : null;
     return {
       t: T.STATE,
@@ -450,7 +572,7 @@ export class ShowHub {
       remaining: this.remaining(),
       timerTotal: this.timerTotal,
       myChoice: mine ? mine.c : null,
-      correct: this.phase === PHASE.REVEAL && s?.type === 'quiz' ? s.correct : null,
+      correct: RESULT_PHASES.includes(this.phase) && s?.type === 'quiz' ? s.correct : null,
     };
   }
 
@@ -472,8 +594,11 @@ export class ShowHub {
       stats: st,
       teams: this.teams,
       muted: audio.muted,
-      bgPlaying: audio.bgPlaying,
-      hasBg: !!this.project.bgTrackId,
+      musicOn: !!this.musicOn,
+      musicAvailable: !!this.musicAvailable,
+      nextLabel: this.nextLabel(),
+      joinOpen: this.joinOpen,
+      hasIntro: this.hasIntro,
       slides: this.slides.map((x, i) => ({ i, q: x.question })),
       people: [...this.participants.values()].map((p) => ({ name: p.name, team: p.team, online: !!p._online, answered: !!bucket[p.pid] })),
     };
@@ -499,6 +624,11 @@ export class ShowHub {
     u.searchParams.set('key', this.remoteKey);
     if (this.backend === 'local') u.searchParams.set('local', '1');
     return u.toString();
+  }
+
+  /** Re-send INFO to every connected phone (e.g. joining opened/closed). */
+  _broadcastInfo() {
+    for (const c of this.unbound) c.send(this._info(c.pid));
   }
 
   _broadcastParticipants() {
