@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clicker Show — Display</title>
+  <meta name="theme-color" content="#000000">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="shared/base.css">
+  <link rel="stylesheet" href="css/stage.css">
+  <style>
+    html, body { background: #000; overflow: hidden; cursor: none; }
+    #screen { position: fixed; inset: 0; }
+    .hint {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 100; cursor: default;
+      background: rgba(20,20,34,.92); border: 1px solid #3a3a58; padding: 10px 18px; border-radius: 12px; color: #ddd;
+      transition: opacity .6s;
+    }
+    .waiting { position: fixed; inset: 0; display: grid; place-items: center; color: #77759a; font-size: 22px; }
+  </style>
+</head>
+<body>
+  <div id="screen"></div>
+  <div class="waiting" id="waiting">Waiting for the host console…</div>
+  <div class="hint" id="hint">Click for fullscreen · F</div>
+  <script type="module">
+    import { Stage } from './js/stage.js';
+    const stage = new Stage(document.getElementById('screen'));
+    const bc = new BroadcastChannel('clicker-display');
+    const waiting = document.getElementById('waiting');
+    bc.onmessage = (e) => {
+      const m = e.data;
+      if (m?.t === 'ds') { waiting.hidden = true; stage.setState(m.state); }
+      else if (m?.t === 'fx') stage.fxEvent(m.e);
+    };
+    bc.postMessage({ t: 'hello' });
+    const hint = document.getElementById('hint');
+    const fs = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); };
+    document.addEventListener('click', fs);
+    document.addEventListener('fullscreenchange', () => { hint.style.opacity = document.fullscreenElement ? 0 : 1; });
+    setTimeout(() => { hint.style.opacity = 0; }, 6000);
+    // forward operator keys so the presenter clicker (PageUp/PageDown) works on this window too
+    const map = { ArrowRight: 'next', PageDown: 'next', ArrowLeft: 'prev', PageUp: 'prev', ' ': 'toggleTimer', r: 'reveal', l: 'lock', s: 'skip' };
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'f') return fs();
+      const cmd = map[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+      if (cmd) { e.preventDefault(); bc.postMessage({ t: 'cmd', cmd }); }
+    });
+  </script>
+</body>
+</html>

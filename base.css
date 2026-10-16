@@ -1,0 +1,108 @@
+/* Shared design tokens + primitives. UI chrome is English (LTR); host-written content is RTL. */
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&family=Rubik:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --ink: #0a0a12;
+  --ink-2: #12121d;
+  --panel: #171725;
+  --panel-2: #1f1f31;
+  --line: #2b2b42;
+  --line-2: #3a3a58;
+  --text: #f4f3ff;
+  --muted: #9b99b8;
+  --dim: #6c6a8a;
+  --accent: #ffcc33;         /* stage-light amber */
+  --accent-ink: #1a1400;
+  --hot: #ff3d7f;            /* magenta "on air" */
+  --ok: #22c55e;
+  --bad: #ef4444;
+  --info: #38bdf8;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  --font-body: 'Heebo', system-ui, 'Segoe UI', Arial, sans-serif;
+  --font-display: 'Rubik', 'Heebo', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+html { direction: ltr; }
+/* Content the host types (questions, answers, names) is Yiddish/Hebrew-script: right-to-left. */
+.rtl, [dir=rtl] { direction: rtl; text-align: right; }
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+h1, h2, h3, .display { font-family: var(--font-display); letter-spacing: -.01em; margin: 0; }
+
+/* Option numbers: their own isolated LTR box ("1." reads correctly), placed first in DOM
+   order inside RTL content so they sit at the RIGHT edge of the line. */
+.num { unicode-bidi: isolate; direction: ltr; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5em;
+  border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text);
+  padding: .62em 1.1em; border-radius: 12px; font-weight: 600; line-height: 1.1;
+  transition: background .15s, border-color .15s, transform .08s;
+  user-select: none;
+}
+.btn:hover { background: #29293f; border-color: #4a4a70; }
+.btn:active { transform: translateY(1px) scale(.99); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: #ffd95c; }
+.btn.hot { background: var(--hot); border-color: var(--hot); color: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--panel-2); }
+.btn.danger:hover { background: #3a1620; border-color: var(--bad); color: #ffb4b4; }
+.btn.sm { padding: .4em .75em; font-size: .9em; border-radius: 10px; }
+.btn.on { background: #2d2a12; border-color: var(--accent); color: var(--accent); }
+.icon { width: 1.15em; height: 1.15em; flex: 0 0 auto; }
+
+/* Inputs */
+.field { display: grid; gap: .35rem; }
+.field > span, .label { color: var(--muted); font-size: .86rem; font-weight: 500; }
+.input, select.input, textarea.input {
+  width: 100%; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 11px;
+  padding: .65em .85em; outline: none; transition: border-color .15s, background .15s;
+}
+.input:focus { border-color: var(--accent); background: #15151f; }
+textarea.input { resize: vertical; min-height: 4.5em; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: .45em; padding: .25em .7em; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line); font-size: .85rem; color: var(--muted); white-space: nowrap;
+}
+.dot { width: .55em; height: .55em; border-radius: 50%; background: var(--dim); flex: 0 0 auto; }
+.dot.online { background: var(--ok); box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); }
+.dot.connecting, .dot.reconnecting { background: var(--accent); animation: blink 1s infinite; }
+.dot.offline, .dot.nohost { background: var(--bad); }
+@keyframes blink { 50% { opacity: .3; } }
+
+/* Toasts */
+.toasts { position: fixed; inset-inline: 0; bottom: 18px; display: grid; justify-items: center; gap: 8px; z-index: 9999; pointer-events: none; }
+.toast {
+  background: #232338; border: 1px solid var(--line-2); padding: .6em 1.1em; border-radius: 12px; box-shadow: var(--shadow);
+  transform: translateY(10px); opacity: 0; transition: .25s; font-weight: 500;
+}
+.toast.in { transform: none; opacity: 1; }
+.toast.ok { border-color: var(--ok); }
+.toast.error { border-color: var(--bad); }
+
+.qr { background: #fff; border-radius: 12px; padding: 6px; line-height: 0; }
+.qr svg { width: 100%; height: auto; display: block; }
+.qr-fallback { line-height: 1.3; color: #111; font-size: 12px; word-break: break-all; padding: 10px; direction: ltr; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
